@@ -929,7 +929,7 @@ test('scenario #22: LTH Protocol Treasury ("خزانه" 15,000,000 LTH), Base/St
   const admin = await loginAs('09120000001');
 
   // 1) Public Treasury endpoint returns exact 5 approved rows & conservation proof
-  const t1 = await api('/api/v1/lth/treasury');
+      assert.equal((await api('/api/v1/lth/treasury')).status, 404); const t1 = await api('/api/v1/admin/lth/reconciliation', { token: admin.token });
   assert.equal(t1.status, 200);
   const tr = t1.data.treasury;
   assert.equal(tr.title, 'خزانه');
@@ -961,7 +961,7 @@ test('scenario #22: LTH Protocol Treasury ("خزانه" 15,000,000 LTH), Base/St
   });
   assert.equal(paySell.status, 200);
 
-  const t2 = await api('/api/v1/lth/treasury');
+    const t2 = await api('/api/v1/admin/lth/reconciliation', { token: admin.token });
   assert.equal(t2.data.treasury.conservation_ok, true);
   assert.ok(BigInt(t2.data.treasury.returned_base_atoms) > 0n, 'جمع بازگشت پایه must increase after base liquidation');
   assert.ok(BigInt(t2.data.treasury.returned_stake_atoms) > 0n, 'جمع بازگشت استیک must increase after unlocked stake liquidation');
