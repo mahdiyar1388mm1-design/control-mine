@@ -589,6 +589,12 @@ export function FinanceReportsPanel({ userRole }) {
   const [tab, setTab] = useState(defaultTab);
   const [statusFilter, setStatusFilter] = useState('');
   const [payments, setPayments] = useState({ items: [], total: 0 });
+  const [lthWithdrawals, setLthWithdrawals] = useState({ items: [], total: 0 });
+  const [lthReconciliation, setLthReconciliation] = useState(null);
+  const [wdModal, setWdModal] = useState(null);
+  const [wdAction, setWdAction] = useState('approve_paid');
+  const [wdBankRef, setWdBankRef] = useState('');
+  const [wdNote, setWdNote] = useState('');
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -610,6 +616,13 @@ export function FinanceReportsPanel({ userRole }) {
         const qs = statusFilter ? `?status=${encodeURIComponent(statusFilter)}` : '';
         const res = await apiFetch(`/payments${qs}`);
         setPayments(res);
+      } else if (tab === 'lth-withdrawals') {
+        const [wRes, rRes] = await Promise.all([
+          apiFetch('/staff/lth/withdrawals?limit=50'),
+          apiFetch('/admin/lth/reconciliation')
+        ]);
+        setLthWithdrawals(wRes);
+        setLthReconciliation(rRes.reconciliation);
       } else if (tab === 'rep-sales') {
         setReport(await apiFetch('/admin/reports/sales'));
       } else if (tab === 'rep-services') {
@@ -657,12 +670,46 @@ export function FinanceReportsPanel({ userRole }) {
     }
   };
 
+  const handleReviewLthWithdrawal = async (e) => {
+    e.preventDefault();
+    if (!wdModal) return;
+    setBusy(true);
+    setOpErr(null);
+    setMsg('');
+    try {
+      await apiFetch(`/staff/lth/withdrawals/${encodeURIComponent(wdModal.code)}/review`, {
+        method: 'POST',
+        body: {
+          action: wdAction,
+          bank_ref: wdBankRef.trim(),
+          review_note: wdNote.trim()
+        }
+      });
+      setWdModal(null);
+      setWdBankRef('');
+      setWdNote('');
+      setMsg(wdAction === 'approve_paid'
+        ? 'تسویهٔ شبا با ثبت مرجع بانکی تأیید شد.'
+        : 'درخواست برداشت رد شد و موجودی به‌صورت اتمیک به کیف پول کاربر بازگشت.');
+      await loadTab();
+    } catch (err) {
+      setOpErr(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div>
       <div className="tabs">
         {canPayments && (
           <button type="button" className={`tab-btn ${tab === 'payments' ? 'active' : ''}`} onClick={() => setTab('payments')}>
             💳 تراکنش‌ها و استرداد وجه
+          </button>
+        )}
+        {canPayments && (
+          <button type="button" className={`tab-btn ${tab === 'lth-withdrawals' ? 'active' : ''}`} onClick={() => setTab('lth-withdrawals')}>
+            🏦 تسویهٔ شبا و دفتر کل LTH
           </button>
         )}
         {canSalesReport && (
@@ -753,7 +800,104 @@ export function FinanceReportsPanel({ userRole }) {
         </div>
       )}
 
-      {!loading && !error && tab !== 'payments' && report && (
+      {!loading && !error && tab === 'lth-withdrawals' && (
+        <div>
+          {lthReconciliation && (
+            <div className="card" style={{ background: lthReconciliation.healthy ? '#f0fdf4' : '#fef2f2', borderColor: lthReconciliation.healthy ? '#86efac' : '#fca5a5' }}>
+              <div className="flex-between">
+                <strong style={{ color: lthReconciliation.healthy ? '#166534' : '#991b1b' }}>
+                  {lthReconciliation.healthy ? '✓ نشان سلامت و همخوانی دفتر کل حسابداری LTH' : '⚠️ هشدار تطبیق دفتر کل LTH'}
+                </strong>
+                <span className={`badge ${lthReconciliation.healthy ? 'badge-ok' : 'badge-danger'}`}>
+                  {lthReconciliation.status_label}
+                </span>
+              </div>
+              <div style={{ fontSize: '0.84rem', marginTop: 6 }}>
+                کیف پول‌ها: <strong>{formatNumber(lthReconciliation.checked_wallets)}</strong> | ثبت‌های دفتر کل: <strong>{formatNumber(lthReconciliation.checked_ledger_entries)}</strong> | پاداش ۲۴ساعته ۱.۰۰ LTH: <strong className="mono">{lthReconciliation.benchmark_1_lth_24h.reward_24h_irr_formatted} ریال</strong>
+              </div>
+            </div>
+          )}
+
+          <div className="card table-wrap">
+            <h3 style={{ marginTop: 0, fontSize: '1.05rem' }}>درخواست‌های برداشت شبا و فروش LTH</h3>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>کد</th>
+                  <th>کاربر</th>
+                  <th>نوع</th>
+                  <th>مبلغ ریالی</th>
+                  <th>شماره شبا</th>
+                  <th>وضعیت</th>
+                  <th>عملیات تسویه</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(lthWithdrawals.items || []).map((wd) => (
+                  <tr key={wd.id}>
+                    <td className="mono">{wd.code}</td>
+                    <td>{wd.user_name} <span className="muted mono">({wd.user_phone_masked})</span></td>
+                    <td>{wd.kind_label}</td>
+                    <td><strong>{wd.amount_irr_formatted} ریال</strong> <span className="muted">({formatMoney(wd.amount_toman)})</span></td>
+                    <td className="mono">{wd.sheba_iban}</td>
+                    <td><StatusBadge status={wd.status === 'paid' ? 'paid' : (wd.status === 'pending' ? 'pending' : 'canceled')} label={wd.status_label} /></td>
+                    <td>
+                      {wd.status === 'pending' ? (
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          onClick={() => {
+                            setWdModal(wd);
+                            setWdAction('approve_paid');
+                            setWdBankRef('');
+                            setWdNote('');
+                          }}
+                        >
+                          بررسی / ثبت پایا
+                        </button>
+                      ) : <span className="mono" style={{ fontSize: '0.8rem' }}>{wd.bank_ref || wd.review_note || '—'}</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {wdModal && (
+            <div className="modal-backdrop" role="dialog" aria-modal="true">
+              <form onSubmit={handleReviewLthWithdrawal} className="modal-card">
+                <h3 style={{ marginTop: 0 }}>تعیین تکلیف تسویهٔ شبا <span className="mono">{wdModal.code}</span></h3>
+                <p className="muted" style={{ fontSize: '0.86rem' }}>
+                  صاحب حساب: <strong>{wdModal.account_holder_name}</strong> | شبا: <span className="mono">{wdModal.sheba_iban}</span> | مبلغ: <strong>{wdModal.amount_irr_formatted} ریال</strong>
+                </p>
+                <div className="form-row">
+                  <label className="form-label">نتیجهٔ بررسی مالی</label>
+                  <select className="select" value={wdAction} onChange={(e) => setWdAction(e.target.value)}>
+                    <option value="approve_paid">تأیید واریز شبا (ثبت شماره مرجع پایا/ساتنا)</option>
+                    <option value="reject">رد درخواست و برگشت آنی موجودی به کیف پول کاربر</option>
+                  </select>
+                </div>
+                {wdAction === 'approve_paid' && (
+                  <div className="form-row">
+                    <label className="form-label">شماره مرجع بانکی (پایا/ساتنا) <span className="req-star">*</span></label>
+                    <input className="input mono" required minLength={4} value={wdBankRef} onChange={(e) => setWdBankRef(e.target.value)} placeholder="PAYA-14050820991" />
+                  </div>
+                )}
+                <div className="form-row">
+                  <label className="form-label">{wdAction === 'reject' ? 'علت رد درخواست *' : 'توضیحات مالی (اختیاری)'}</label>
+                  <input className="input" required={wdAction === 'reject'} value={wdNote} onChange={(e) => setWdNote(e.target.value)} placeholder="توضیح جهت اطلاع کاربر و ثبت در ممیزی..." />
+                </div>
+                <div className="flex-gap" style={{ justifyContent: 'flex-end' }}>
+                  <button type="button" className="btn btn-secondary" onClick={() => setWdModal(null)}>انصراف</button>
+                  <button type="submit" className="btn btn-primary" disabled={busy}>ثبت قطعی</button>
+                </div>
+              </form>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!loading && !error && tab !== 'payments' && tab !== 'lth-withdrawals' && report && (
         <div>
           {/* §17: Mandatory Report Definition Header */}
           <div className="card" style={{ background: 'var(--surface-alt)' }}>

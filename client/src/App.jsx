@@ -15,6 +15,8 @@ import {
 } from './pages/ServicesPage';
 import { TicketDetailPage, TicketsListPage } from './pages/SupportPage';
 import { AuthPage, NotificationsPage, ProfileAddressesPage } from './pages/AccountPage';
+import { LthWalletPage } from './pages/LthWalletPage';
+import { LthCalculatorPage } from './pages/LthCalculatorPage';
 import { StaffWorkspacePage } from './pages/staff/StaffWorkspacePage';
 
 function NotFoundPage() {
@@ -34,6 +36,8 @@ export default function App() {
         <Layout>
           <Routes>
             <Route path="/" element={<HomePage />} />
+            <Route path="/wallet" element={<LthWalletPage />} />
+            <Route path="/lth-calculator" element={<LthCalculatorPage />} />
             <Route path="/shop" element={<ShopPage />} />
             <Route path="/products/:slug" element={<ProductDetailPage />} />
             <Route path="/cart" element={<CartCheckoutPage />} />

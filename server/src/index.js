@@ -4,10 +4,12 @@ const config = require('./config');
 const { migrate } = require('./db/migrate');
 const { close } = require('./db');
 const { createApp } = require('./app');
+const { startRewardScheduler } = require('./modules/lth/scheduler');
 const logger = require('./utils/logger');
 
 migrate((msg) => logger.info(msg));
 
+const rewardScheduler = startRewardScheduler({ intervalMs: 30000 });
 const app = createApp();
 const server = app.listen(config.port, config.host, () => {
   logger.info(`CENTRAL MINE API listening on http://${config.host}:${config.port} (${config.env})`);
@@ -15,6 +17,7 @@ const server = app.listen(config.port, config.host, () => {
 
 function shutdown(signal) {
   logger.info(`received ${signal}, shutting down gracefully`);
+  rewardScheduler.stop();
   server.close(() => {
     close();
     process.exit(0);

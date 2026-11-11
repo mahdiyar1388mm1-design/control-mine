@@ -80,5 +80,21 @@
 | GET | /admin/audit | admin | |
 | GET | /files/:id | مالک/نقش مجاز | دانلود خصوصی با کنترل مجوز |
 
+## lth (LOTH COIN — موتور محاسبه، کیف پول ۷ عنوانی و Proof of Stake)
+| GET | /lth/config | عمومی | نرخ ریالی `1.00 LTH`، پکیج‌های تومان، درصد ریگلاژ، لوگوی آپلودی و شاخص‌های مرجع |
+| POST | /lth/calculate | عمومی | محاسبهٔ دوطرفهٔ دقیق `BigInt` (ریال ↔ LTH تا `10^-16` و تمام موازین ۲۴ ساعته) |
+| GET | /lth/health-benchmark | عمومی | شاخص مرجع پاداش ۲۴ ساعته `1.00 LTH = 0.0034 LTH = 16,456,000 IRR` |
+| GET | /lth/wallet | ورود | کیف پول ۷ عنوانی، قراردادهای هوشمند PoS، تطبیق دفتر حسابداری و سوابق |
+| POST | /lth/purchases | ورود + Idempotency-Key | خرید پکیج یا مبلغ دلخواه LTH و ایجاد تراکنش درگاه آزمایشی |
+| POST | /lth/withdrawals | ورود | ثبت درخواست برداشت شبا یا فروش LTH از محل موجودی قابل برداشت |
+| POST | /lth/withdrawals/:code/cancel | ورود (مالک) | لغو درخواست در انتظار و بازگشت اتمیک موجودی |
+| POST | /lth/transfers | ورود | انتقال حساب به حساب (PAY) از محل موجودی قابل برداشت |
+| GET | /staff/lth/withdrawals | finance, admin | صف درخواست‌های تسویه شبا و فروش LTH |
+| POST | /staff/lth/withdrawals/:code/review | finance, admin | تأیید واریز پایا با مرجع بانکی یا رد با بازگشت اتمیک |
+| GET | /admin/lth/reconciliation | finance, admin | تطبیق کامل دفتر کل حسابداری با کیف پول‌ها + وضعیت کلاستر سرورها |
+| PATCH | /admin/lth/settings | admin | ریگلاژ ۱۰۰٪ استیک/قابل برداشت، نرخ ریالی، قفل ۳۲۸۵ روزه و پکیج‌ها + ممیزی |
+| POST | /admin/lth/logo | admin | آپلود تصویر لوگوی LTH با بررسی امضای باینری |
+| POST | /admin/lth/settle-due | admin | اجرای دستی پایش چرخه‌های ۲۴ ساعتهٔ سررسیدشده |
+
 ## health
 `GET /health` → { status:"ok", version } — برای health check استقرار.

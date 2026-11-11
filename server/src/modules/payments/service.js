@@ -7,16 +7,19 @@ const config = require('../../config');
 const { uuid, nowIso, validate, parsePagination, hashBody } = require('../../utils/validate');
 const { notify, audit } = require('../platform/service');
 const ordersService = require('../orders/service');
+const lthService = require('../lth/service');
 
 function signCallback(token, outcome) {
   return crypto.createHmac('sha256', config.secret).update(`${token}:${outcome}`).digest('hex');
 }
 
 function paymentToJson(row) {
+  const lthPurchase = get('SELECT code FROM lth_purchase_orders WHERE payment_id = ?', [row.id]);
   return {
     id: row.id,
     order_id: row.order_id,
     service_request_id: row.service_request_id,
+    lth_purchase_code: lthPurchase ? lthPurchase.code : null,
     amount_toman: row.amount_toman,
     status: row.status,
     status_label: {
@@ -118,6 +121,10 @@ function getPaymentFor(user, id) {
   if (row.service_request_id) {
     const reqRow = get('SELECT user_id FROM service_requests WHERE id = ?', [row.service_request_id]);
     if (reqRow && reqRow.user_id === user.id) allowed = true;
+  }
+  const lthPurchase = get('SELECT user_id FROM lth_purchase_orders WHERE payment_id = ?', [row.id]);
+  if (lthPurchase && lthPurchase.user_id === user.id) {
+    allowed = true;
   }
   if (!allowed) throw ApiError.forbidden('شما به این پرداخت دسترسی ندارید.');
   return row;
@@ -234,14 +241,17 @@ function sandboxCallback(body) {
               notify(reqRow.user_id, 'service_paid', 'پرداخت درخواست تأیید شد', `درخواست ${reqRow.code} وارد صف انجام شد.`, `/service-requests/${reqRow.code}`);
             }
           }
+          lthService.handlePaymentOutcomeInTx(payment.id, 'success', now);
         }
       } else if (data.outcome === 'fail') {
         if (payment.status === 'pending') {
           run("UPDATE payments SET status = 'failed', failure_reason = 'user_abort', updated_at = ? WHERE id = ?", [now, payment.id]);
+          lthService.handlePaymentOutcomeInTx(payment.id, 'fail', now);
         }
       } else if (data.outcome === 'expired') {
         if (payment.status === 'pending') {
           run("UPDATE payments SET status = 'expired', failure_reason = 'expired_or_unknown', updated_at = ? WHERE id = ?", [now, payment.id]);
+          lthService.handlePaymentOutcomeInTx(payment.id, 'expired', now);
         }
       }
       audit(null, 'system', 'payment.callback', 'payment', payment.id, { outcome: data.outcome, replay: false });

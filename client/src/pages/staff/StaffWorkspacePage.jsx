@@ -125,10 +125,18 @@ export function StaffWorkspacePage() {
             </div>
           )}
           {q.finance && (
-            <div className="kpi-card">
-              <div className="kpi-label">پرداخت‌های ناموفق / منقضی</div>
-              <div className="kpi-value">{formatNumber(q.finance.failed_or_expired_payments)}</div>
-            </div>
+            <>
+              <div className="kpi-card">
+                <div className="kpi-label">پرداخت‌های ناموفق / منقضی</div>
+                <div className="kpi-value">{formatNumber(q.finance.failed_or_expired_payments)}</div>
+              </div>
+              <div className="kpi-card">
+                <div className="kpi-label">برداشت‌های شبا LTH در انتظار تسویه</div>
+                <div className="kpi-value" style={{ color: q.finance.pending_lth_withdrawals > 0 ? '#db2777' : 'var(--ok)' }}>
+                  {formatNumber(q.finance.pending_lth_withdrawals || 0)}
+                </div>
+              </div>
+            </>
           )}
         </div>
       )}

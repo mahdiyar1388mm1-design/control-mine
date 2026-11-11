@@ -24,6 +24,8 @@ export function Layout({ children }) {
 
           <nav className="desktop-nav" aria-label="ناوبری اصلی">
             <NavLink to="/" end className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>صفحهٔ اصلی</NavLink>
+            <NavLink to="/wallet" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>🪙 کیف پول ماین</NavLink>
+            <NavLink to="/lth-calculator" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>🧮 محاسبه‌گر LTH</NavLink>
             <NavLink to="/shop" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>فروشگاه کالا</NavLink>
             <NavLink to="/services" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>خدمات عملیاتی</NavLink>
             {user && (
@@ -91,26 +93,26 @@ export function Layout({ children }) {
         </div>
       </footer>
 
-      <nav className="mobile-bottom-nav" aria-label="ناوبری موبایل">
-        <NavLink to="/" end className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}>
-          <span>🏠</span>
-          <span>خانه</span>
-        </NavLink>
-        <NavLink to="/shop" className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}>
-          <span>🛍️</span>
-          <span>فروشگاه</span>
-        </NavLink>
-        <NavLink to="/services" className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}>
+      <nav className="mobile-bottom-nav" aria-label="ناوبری موبایل" style={{ background: '#ec1e79', borderTop: 'none' }}>
+        <NavLink to="/services" className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`} style={{ color: '#fff' }}>
           <span>⚙️</span>
           <span>خدمات</span>
         </NavLink>
-        <NavLink to="/cart" className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}>
-          <span>🛒</span>
-          <span>سبد {cartCount > 0 ? `(${cartCount.toLocaleString('fa-IR')})` : ''}</span>
+        <NavLink to="/wallet?panel=p2p" className="mobile-nav-item" style={{ color: '#fff' }}>
+          <span>💳</span>
+          <span>حساب به حساب</span>
         </NavLink>
-        <NavLink to={staff ? '/staff' : (user ? '/account' : '/auth')} className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}>
-          <span>{staff ? '🛠️' : '👤'}</span>
-          <span>{staff ? 'عملیات' : (user ? 'حساب' : 'ورود')}</span>
+        <NavLink to="/shop" className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`} style={{ color: '#fff' }}>
+          <span>🛍️</span>
+          <span>فروشگاه</span>
+        </NavLink>
+        <NavLink to="/tickets" className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`} style={{ color: '#fff' }}>
+          <span>🎧</span>
+          <span>پشتیبانی</span>
+        </NavLink>
+        <NavLink to={staff ? '/staff' : '/wallet'} className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`} style={{ color: '#fff' }}>
+          <span>{staff ? '🛠️' : 'ماین'}</span>
+          <span>{staff ? 'عملیات' : 'حساب'}</span>
         </NavLink>
       </nav>
     </div>

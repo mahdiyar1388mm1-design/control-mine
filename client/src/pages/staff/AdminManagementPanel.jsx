@@ -2,9 +2,10 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '../../lib/api';
 import { formatDateTime, formatMoney, formatNumber, ROLE_LABELS } from '../../lib/format';
 import { ConfirmDialog, ErrorState, FieldErrorsList, LoadingState, StatusBadge } from '../../components/StateViews';
+import { AdminLthPanel } from './AdminLthPanel';
 
 export function AdminManagementPanel() {
-  const [tab, setTab] = useState('catalog'); // catalog | services | users | settings | audit
+  const [tab, setTab] = useState('lth'); // lth | catalog | services | users | settings | audit
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [msg, setMsg] = useState('');
@@ -43,6 +44,11 @@ export function AdminManagementPanel() {
   const [audits, setAudits] = useState([]);
 
   const loadTab = useCallback(async () => {
+    if (tab === 'lth') {
+      setLoading(false);
+      setError(null);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -297,12 +303,15 @@ export function AdminManagementPanel() {
   return (
     <div>
       <div className="tabs">
+        <button type="button" className={`tab-btn ${tab === 'lth' ? 'active' : ''}`} onClick={() => setTab('lth')}>🪙 موتور LTH، ریگلاژ استیک و لوگو</button>
         <button type="button" className={`tab-btn ${tab === 'catalog' ? 'active' : ''}`} onClick={() => setTab('catalog')}>🛍️ مدیریت کالاها و SKU</button>
         <button type="button" className={`tab-btn ${tab === 'services' ? 'active' : ''}`} onClick={() => setTab('services')}>⚙️ تعریف خدمات و فرم نسخه‌دار</button>
         <button type="button" className={`tab-btn ${tab === 'users' ? 'active' : ''}`} onClick={() => setTab('users')}>👥 کاربران و نقش‌ها</button>
         <button type="button" className={`tab-btn ${tab === 'settings' ? 'active' : ''}`} onClick={() => setTab('settings')}>⚙️ تنظیمات ارسال</button>
         <button type="button" className={`tab-btn ${tab === 'audit' ? 'active' : ''}`} onClick={() => setTab('audit')}>🛡️ سابقهٔ ممیزی (Audit Log)</button>
       </div>
+
+      {tab === 'lth' && <AdminLthPanel />}
 
       {msg && <div className="alert-inline ok">✓ {msg}</div>}
       {opErr && (

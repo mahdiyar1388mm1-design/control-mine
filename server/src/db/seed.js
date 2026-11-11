@@ -14,6 +14,97 @@ const { migrate } = require('./migrate');
 const { get, run, tx, close } = require('./index');
 const { hashPassword } = require('../utils/password');
 const { uuid, nowIso } = require('../utils/validate');
+const lthService = require('../modules/lth/service');
+const lthMath = require('../modules/lth/math');
+
+function seedLthDemoIfEmpty({ silent = false } = {}) {
+  lthService.ensureDefaultLogo();
+  const existingHolding = get('SELECT id FROM lth_holdings LIMIT 1');
+  if (existingHolding) return false;
+  const cust = get("SELECT id FROM users WHERE phone = '09120000010'");
+  if (!cust) return false;
+
+  const purchasedMs = Date.now() - 50 * 3600 * 1000; // 50 hours ago -> 2 full 24h reward cycles due
+  const purchasedIso = new Date(purchasedMs).toISOString();
+  const settings = lthService.getSettingsRow();
+  const priceIrr = BigInt(settings.price_irr);
+  const amountToman = 22000000; // 22,000,000 Toman package
+  const amountIrr = BigInt(amountToman) * 10n; // 220,000,000 IRR
+  const lthAtoms = (amountIrr * lthMath.ONE_LTH_ATOMS) / priceIrr;
+  const unlockMs = purchasedMs + Number(settings.lockup_days) * 86400000;
+  const unlockIso = new Date(unlockMs).toISOString();
+  const intervalMs = Number(settings.reward_interval_sec) * 1000;
+
+  tx(() => {
+    const wallet = lthService.ensureWalletInTx(cust.id);
+    const payId = uuid();
+    const purId = uuid();
+    const holdId = uuid();
+
+    run(
+      `INSERT INTO payments (
+        id, order_id, service_request_id, lth_purchase_id, amount_toman, status, gateway,
+        gateway_ref, callback_token, paid_at, failure_reason, created_at, updated_at
+      ) VALUES (?, NULL, NULL, ?, ?, 'paid', 'sandbox', 'SBX-SEED-LTH1', ?, ?, NULL, ?, ?)`,
+      [payId, purId, amountToman, crypto.randomBytes(24).toString('hex'), purchasedIso, purchasedIso, purchasedIso]
+    );
+
+    run(
+      `INSERT INTO lth_purchase_orders (
+        id, code, user_id, payment_id, package_toman, amount_toman, amount_irr,
+        unit_price_irr, lth_atoms, lockup_days, status, fulfilled_at, created_at, updated_at
+      ) VALUES (?, 'LP-SEED5101', ?, ?, ?, ?, ?, ?, ?, ?, 'fulfilled', ?, ?, ?)`,
+      [
+        purId, cust.id, payId, amountToman, amountToman, amountIrr.toString(),
+        priceIrr.toString(), lthAtoms.toString(), settings.lockup_days,
+        purchasedIso, purchasedIso, purchasedIso
+      ]
+    );
+
+    run(
+      `INSERT INTO lth_holdings (
+        id, contract_code, user_id, purchase_order_id, initial_base_atoms, active_base_atoms,
+        accrued_staked_atoms, accrued_withdrawable_atoms, unit_price_irr_snapshot, lockup_days,
+        purchased_at_ms, purchased_at, stake_unlock_at_ms, stake_unlock_at, stake_unlocked,
+        last_reward_cycle, next_reward_at_ms, status, created_at, updated_at
+      ) VALUES (?, 'POS-SEED5101', ?, ?, ?, ?, '0', '0', ?, ?, ?, ?, ?, ?, 0, 0, ?, 'active', ?, ?)`,
+      [
+        holdId, cust.id, purId, lthAtoms.toString(), lthAtoms.toString(),
+        priceIrr.toString(), settings.lockup_days,
+        purchasedMs, purchasedIso, unlockMs, unlockIso,
+        purchasedMs + intervalMs, purchasedIso, purchasedIso
+      ]
+    );
+
+    run(
+      `UPDATE lth_wallets
+       SET base_atoms = ?, total_purchased_atoms = ?, updated_at = ?
+       WHERE user_id = ?`,
+      [
+        (BigInt(wallet.base_atoms) + lthAtoms).toString(),
+        (BigInt(wallet.total_purchased_atoms) + lthAtoms).toString(),
+        purchasedIso,
+        cust.id
+      ]
+    );
+
+    run(
+      `INSERT INTO lth_ledger (
+        id, user_id, entry_type, delta_base_atoms, delta_staked_atoms,
+        delta_withdrawable_atoms, delta_reserved_atoms, price_irr_snapshot,
+        irr_value_snapshot, ref_type, ref_id, note, created_at
+      ) VALUES (?, ?, 'purchase_base', ?, '0', '0', '0', ?, ?, 'lth_purchase', ?, ?, ?)`,
+      [
+        uuid(), cust.id, lthAtoms.toString(), priceIrr.toString(), amountIrr.toString(),
+        purId, 'خرید اولیه نمونه (LP-SEED5101) — پکیج ۲۲٬۰۰۰٬۰۰۰ تومان', purchasedIso
+      ]
+    );
+  });
+
+  lthService.settleDueRewards({ userId: cust.id });
+  if (!silent) console.log('seed: LTH PoS contract & 24h reward cycles seeded.');
+  return true;
+}
 
 function makeProductSvg(title, subtitle, accentHex, iconShape) {
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -42,6 +133,7 @@ function seed({ silent = false } = {}) {
 
   const existingAdmin = get("SELECT id FROM users WHERE phone = '09120000001'");
   if (existingAdmin) {
+    seedLthDemoIfEmpty({ silent });
     if (!silent) console.log('seed: database already contains seed accounts; skipping.');
     return { skipped: true };
   }
@@ -446,6 +538,8 @@ function seed({ silent = false } = {}) {
       [uuid(), users.admin.id, 'admin', 'system.seed', 'system', 'v1', JSON.stringify({ note: 'initial synthetic seed' }), now]
     );
   });
+
+  seedLthDemoIfEmpty({ silent });
 
   if (!silent) console.log('seed: synthetic data created successfully.');
   return { skipped: false };

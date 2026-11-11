@@ -631,3 +631,337 @@ a:hover {
   body { background: #fff; padding: 0; }
   .card { box-shadow: none; border-color: #999; }
 }
+
+/* ==================== LOTH COIN (LTH) TOP BAR, PINK WALLET & CALCULATOR ==================== */
+
+.lth-shell {
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+/* Separate Top Bar ("نوار بالا جدا از کیف پول") */
+.lth-top-ticker-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #ffffff;
+  border: 2px solid #fbcfe8;
+  border-radius: 18px;
+  padding: 12px 16px;
+  margin-bottom: 18px;
+  text-decoration: none !important;
+  color: #0f172a;
+  box-shadow: 0 6px 18px rgba(236, 30, 121, 0.08);
+  transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
+}
+.lth-top-ticker-bar:hover {
+  transform: translateY(-1px);
+  border-color: #ec1e79;
+  box-shadow: 0 10px 24px rgba(236, 30, 121, 0.16);
+}
+
+.lth-ticker-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lth-ticker-logo {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  object-fit: cover;
+  border: 1.5px solid #f472b6;
+  background: #fff0f7;
+  flex-shrink: 0;
+}
+.lth-ticker-brand {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+  line-height: 1.25;
+}
+.lth-ticker-pair {
+  font-weight: 800;
+  font-size: 0.92rem;
+  color: #334155;
+  direction: ltr;
+}
+.lth-ticker-coin {
+  font-weight: 800;
+  font-size: 0.86rem;
+  color: #64748b;
+  direction: ltr;
+}
+
+.lth-ticker-left {
+  text-align: left;
+  line-height: 1.25;
+}
+.lth-ticker-price {
+  font-weight: 900;
+  font-size: 1.12rem;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+.lth-ticker-pos {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+.lth-ticker-cta {
+  background: #fdf2f8;
+  color: #db2777;
+  border: 1px solid #fbcfe8;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  direction: rtl;
+}
+
+/* Pink Wallet Card (7 Titles) */
+.lth-wallet-card {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(145deg, #f72585 0%, #ec1e79 52%, #d6186c 100%);
+  color: #ffffff;
+  border-radius: 26px;
+  padding: 22px 20px 18px;
+  box-shadow: 0 16px 36px rgba(236, 30, 121, 0.28);
+  margin-bottom: 16px;
+}
+.lth-wallet-watermark {
+  position: absolute;
+  left: 16px;
+  bottom: -14px;
+  font-size: 6.8rem;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: rgba(255, 255, 255, 0.14);
+  pointer-events: none;
+  user-select: none;
+  line-height: 1;
+  direction: ltr;
+}
+.lth-wallet-dots-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 14px;
+  position: relative;
+  z-index: 1;
+}
+.lth-wallet-dots {
+  font-size: 1.25rem;
+  letter-spacing: 3px;
+  font-weight: 800;
+  direction: ltr;
+  opacity: 0.95;
+}
+.lth-serial-btn {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-size: 0.76rem;
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.lth-serial-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.lth-wallet-rows {
+  position: relative;
+  z-index: 1;
+}
+.lth-wallet-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.24);
+}
+.lth-wallet-row:last-child {
+  border-bottom: none;
+}
+.lth-row-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.lth-row-title {
+  font-weight: 800;
+  font-size: 0.96rem;
+}
+.lth-row-sub {
+  font-size: 0.73rem;
+  color: rgba(255, 255, 255, 0.84);
+}
+.lth-row-val {
+  font-weight: 800;
+  font-size: 1.02rem;
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  text-align: left;
+}
+.lth-sheba-pill {
+  background: rgba(255, 255, 255, 0.24);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.lth-sheba-pill:hover {
+  background: #ffffff;
+  color: #d6186c;
+}
+
+/* Outline / Filled Action Buttons below Wallet (فروش / قرارداد هوشمند) */
+.lth-outline-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 18px;
+  margin-bottom: 12px;
+  background: #ffffff;
+  border: 2.5px solid #ec1e79;
+  border-radius: 18px;
+  font-family: inherit;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #1e293b;
+  cursor: pointer;
+  text-decoration: none !important;
+  transition: background 0.14s, color 0.14s, transform 0.12s;
+}
+.lth-outline-btn.pink-text {
+  color: #ec1e79;
+}
+.lth-outline-btn:hover {
+  background: #fdf2f8;
+  transform: translateY(-1px);
+}
+.lth-filled-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 18px;
+  margin-bottom: 12px;
+  background: linear-gradient(135deg, #f72585 0%, #ec1e79 100%);
+  border: none;
+  border-radius: 18px;
+  font-family: inherit;
+  font-size: 1.02rem;
+  font-weight: 800;
+  color: #ffffff;
+  cursor: pointer;
+  text-decoration: none !important;
+  box-shadow: 0 8px 20px rgba(236, 30, 121, 0.24);
+}
+.lth-filled-btn:hover {
+  opacity: 0.95;
+}
+
+/* Calculator ("ماین") Screen */
+.lth-calc-card {
+  background: #ffffff;
+  border-radius: 24px;
+  overflow: hidden;
+  border: 1.5px solid #fbcfe8;
+  box-shadow: 0 12px 32px rgba(236, 30, 121, 0.11);
+  margin-bottom: 20px;
+}
+.lth-calc-banner {
+  background: linear-gradient(135deg, #ff2a8d 0%, #ec1e79 100%);
+  color: #ffffff;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.lth-calc-brand {
+  font-size: 1.65rem;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+}
+.lth-calc-body {
+  padding: 20px;
+}
+.lth-calc-label {
+  display: block;
+  font-weight: 900;
+  font-size: 0.98rem;
+  color: #1e293b;
+  margin-bottom: 6px;
+}
+.lth-calc-input {
+  width: 100%;
+  padding: 13px 16px;
+  border: 2px solid #f472b6;
+  border-radius: 14px;
+  font-size: 1.12rem;
+  font-weight: 800;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  direction: ltr;
+  text-align: left;
+  color: #0f172a;
+  background: #fffbfd;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.lth-calc-input:focus {
+  outline: none;
+  border-color: #db2777;
+  box-shadow: 0 0 0 3px rgba(236, 30, 121, 0.18);
+}
+
+.lth-pkg-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 10px;
+}
+.lth-pkg-btn {
+  border: 2px solid transparent;
+  border-radius: 12px;
+  padding: 13px 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #ffffff;
+  cursor: pointer;
+  direction: ltr;
+  text-align: center;
+  transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s;
+}
+.lth-pkg-btn:hover {
+  transform: translateY(-1px);
+}
+.lth-pkg-btn.selected {
+  border-color: #0f172a;
+  box-shadow: 0 0 0 3px rgba(236, 30, 121, 0.28);
+}
+.lth-pkg-shade-0 { background: #d6186c; }
+.lth-pkg-shade-1 { background: #ec2d82; }
+.lth-pkg-shade-2 { background: #f4549c; }
+.lth-pkg-shade-3 { background: #f98dc0; color: #ffffff; }
+.lth-pkg-shade-4 { background: #fbc4df; color: #831843; }
+

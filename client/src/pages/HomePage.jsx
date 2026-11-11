@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { formatMoney } from '../lib/format';
 import { EmptyState, ErrorState, LoadingState, ProductImage } from '../components/StateViews';
+import { LthTopBar } from '../components/LthTopBar';
 
 export function HomePage() {
   const navigate = useNavigate();
@@ -41,6 +42,8 @@ export function HomePage() {
 
   return (
     <div>
+      <LthTopBar />
+
       <section className="card" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', color: '#f8fafc', padding: '28px 24px', marginBottom: 24 }}>
         <h1 style={{ margin: '0 0 8px', fontSize: '1.65rem', fontWeight: 800 }}>
           فروشگاه تخصصی تجهیزات صنعتی و خدمات فنی آنلاین
@@ -63,6 +66,8 @@ export function HomePage() {
         </form>
 
         <div className="flex-gap">
+          <Link to="/wallet" className="btn btn-primary" style={{ background: '#ec1e79' }}>🪙 کیف پول ماین (LTH)</Link>
+          <Link to="/lth-calculator" className="btn btn-secondary">🧮 محاسبه‌گر و پکیج LTH</Link>
           <Link to="/shop" className="btn btn-primary">مشاهدهٔ همهٔ کالاها</Link>
           <Link to="/services" className="btn btn-secondary">ثبت درخواست خدمت فنی</Link>
         </div>

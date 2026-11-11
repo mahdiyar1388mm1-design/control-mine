@@ -76,15 +76,16 @@ test('unit: scenario #20 — versioned migration, rollback, and AES-256-GCM encr
   assert.equal(bkp.encrypted, true);
   assert.ok(bkp.path.endsWith('.enc'));
 
-  // Rollback migration 001_init and re-apply cleanly
-  const rolled = rollback(1);
-  assert.deepEqual(rolled, ['001_init']);
-  const tablesAfterDown = get("SELECT COUNT(*) AS c FROM sqlite_master WHERE type='table' AND name='orders'").c;
+  // Rollback migrations 002_lth_wallet + 001_init and re-apply cleanly
+  const rolled = rollback(2);
+  assert.deepEqual(rolled, ['002_lth_wallet', '001_init']);
+  const tablesAfterDown = get("SELECT COUNT(*) AS c FROM sqlite_master WHERE type='table' AND name IN ('orders','lth_wallets')").c;
   assert.equal(tablesAfterDown, 0);
 
   // Re-migrate and verify clean schema
   migrate();
   assert.equal(get("SELECT COUNT(*) AS c FROM sqlite_master WHERE type='table' AND name='orders'").c, 1);
+  assert.equal(get("SELECT COUNT(*) AS c FROM sqlite_master WHERE type='table' AND name='lth_wallets'").c, 1);
 
   // Verify encrypted backup restores canary row into a separate DB file
   const restoredDbFile = path.join(tmpRoot, 'restored.db');
@@ -95,4 +96,37 @@ test('unit: scenario #20 — versioned migration, rollback, and AES-256-GCM encr
   const canary = checkDb.prepare("SELECT value FROM settings WHERE key = 'canary_key'").get();
   assert.equal(canary.value, '"ok"');
   checkDb.close();
+});
+
+test('unit: LTH exact BigInt calculation engine (0.000000000001 LTH = 0.00484 IRR, 1.00 LTH 24h = 16,456,000 IRR, zero float drift)', () => {
+  const lthMath = require('../src/modules/lth/math');
+  const defaultSettings = {
+    price_irr: '4840000000',
+    reward_per_min_unit_atoms: '340000', // 0.000000000034 LTH per 0.00000001 LTH
+    stake_bps: 7000,
+    withdrawable_bps: 3000,
+    lockup_days: 3285
+  };
+
+  // 1) Micro-unit: 0.000000000001 LTH === 0.00484 IRR (exact bidirectional)
+  const picoRes = lthMath.calculateAllMetrics({ mode: 'lth', value: '0.000000000001', settings: defaultSettings });
+  assert.equal(picoRes.input_summary.irr_exact, '0.00484');
+  const reversePico = lthMath.calculateAllMetrics({ mode: 'irr', value: '0.00484', settings: defaultSettings });
+  assert.equal(reversePico.input_summary.lth_exact, '0.000000000001');
+
+  // 2) Smallest token unit: 0.00000001 LTH -> 24h reward = 0.000000000034 LTH
+  const minUnitRes = lthMath.calculateAllMetrics({ mode: 'lth', value: '0.00000001', settings: defaultSettings });
+  assert.equal(minUnitRes.metrics_24h.total_reward_lth_exact, '0.000000000034');
+
+  // 3) 1.00 LTH -> 24h reward = 0.0034 LTH = 16,456,000 IRR (1,645,600 Toman)
+  const oneLthRes = lthMath.calculateAllMetrics({ mode: 'lth', value: '1', settings: defaultSettings });
+  assert.equal(oneLthRes.metrics_24h.total_reward_lth_exact, '0.0034');
+  assert.equal(oneLthRes.metrics_24h.total_reward_irr_exact, '16456000');
+  assert.equal(oneLthRes.metrics_24h.total_reward_toman_exact, '1645600');
+
+  // 4) Regulator split conservation for 71% / 29% on smallest unit
+  const split71 = lthMath.computeDailyRewardSplit(lthMath.MIN_TOKEN_UNIT_ATOMS, '340000', 7100);
+  assert.equal(split71.stakedAtoms + split71.withdrawableAtoms, split71.totalRewardAtoms);
+  assert.equal(lthMath.formatAtomsCompact(split71.stakedAtoms), '0.00000000002414');
+  assert.equal(lthMath.formatAtomsCompact(split71.withdrawableAtoms), '0.00000000000986');
 });

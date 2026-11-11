@@ -78,7 +78,8 @@ router.get('/staff/overview', requireStaff, (req, res) => {
       pending_payments: get("SELECT COUNT(*) AS c FROM payments WHERE status = 'pending'").c,
       failed_or_expired_payments: get("SELECT COUNT(*) AS c FROM payments WHERE status IN ('failed','expired')").c,
       paid_payments: get("SELECT COUNT(*) AS c FROM payments WHERE status = 'paid'").c,
-      refunded_payments: get("SELECT COUNT(*) AS c FROM payments WHERE status = 'refunded'").c
+      refunded_payments: get("SELECT COUNT(*) AS c FROM payments WHERE status = 'refunded'").c,
+      pending_lth_withdrawals: get("SELECT COUNT(*) AS c FROM lth_sheba_withdrawals WHERE status = 'pending'").c
     };
   }
   res.json(out);

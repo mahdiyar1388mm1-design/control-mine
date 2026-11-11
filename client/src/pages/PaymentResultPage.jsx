@@ -90,6 +90,11 @@ export function PaymentResultPage() {
           {payment.service_request_id && (
             <Link to="/service-requests" className="btn btn-primary">مشاهدهٔ پرونده‌های خدمات</Link>
           )}
+          {payment.lth_purchase_code && (
+            <Link to="/wallet" className="btn btn-primary" style={{ background: '#ec1e79' }}>
+              مشاهدهٔ کیف پول و قرارداد هوشمند LTH
+            </Link>
+          )}
           <button type="button" className="btn btn-secondary" onClick={loadPayment}>
             🔄 استعلام مجدد وضعیت از سرور
           </button>

@@ -21,15 +21,18 @@ function migrate(log = () => {}) {
     const already = d.prepare('SELECT 1 AS x FROM schema_migrations WHERE version = ?').get(version);
     if (already) continue;
     const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+    d.exec('PRAGMA foreign_keys = OFF');
     d.exec('BEGIN IMMEDIATE');
     try {
       d.exec(sql);
       d.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)')
         .run(version, new Date().toISOString());
       d.exec('COMMIT');
+      d.exec('PRAGMA foreign_keys = ON');
       log(`migration applied: ${version}`);
     } catch (err) {
       try { d.exec('ROLLBACK'); } catch { /* ignore */ }
+      d.exec('PRAGMA foreign_keys = ON');
       throw new Error(`migration ${version} failed: ${err.message}`);
     }
   }

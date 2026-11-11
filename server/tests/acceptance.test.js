@@ -717,3 +717,187 @@ test('scenario #7-concurrency & #19: concurrent orders never oversell stock + Pe
   assert.equal(catRes.headers.get('cache-control'), 'no-store');
 });
 
+test('LTH (LOTH COIN) end-to-end: calculator, packages, 7 wallet titles, 24h multi-server rewards, 3285d PoS lockup, 71/29 regulator, logo upload, Sheba & ledger reconciliation', async () => {
+  const { runCoordinatedRewardTick } = require('../src/modules/lth/scheduler');
+  const cust1 = await loginAs('09120000010');
+  const cust2 = await loginAs('09120000011');
+  const fin = await loginAs('09120000005');
+  const admin = await loginAs('09120000001');
+
+  // 1) Public config & calculator precision
+  const cfgRes = await api('/api/v1/lth/config');
+  assert.equal(cfgRes.status, 200);
+  assert.equal(cfgRes.data.config.price_irr, '4840000000');
+  assert.equal(cfgRes.data.config.stake_percent, 70);
+  assert.equal(cfgRes.data.config.withdrawable_percent, 30);
+  assert.equal(cfgRes.data.config.lockup_days, 3285);
+  assert.deepEqual(cfgRes.data.config.packages_toman, [22000000, 11000000, 8000000, 1000000, 220000]);
+  const pkg220k = cfgRes.data.config.packages.find((p) => p.amount_toman === 220000);
+  assert.equal(pkg220k.amount_irr, '2200000');
+
+  const calcPico = await api('/api/v1/lth/calculate', {
+    method: 'POST',
+    body: { mode: 'lth', value: '0.000000000001' }
+  });
+  assert.equal(calcPico.status, 200);
+  assert.equal(calcPico.data.input_summary.irr_exact, '0.00484');
+
+  // 2) Customer2 purchases 11,000,000 Toman (110,000,000 IRR) package via sandbox payment
+  const purRes = await api('/api/v1/lth/purchases', {
+    method: 'POST',
+    token: cust2.token,
+    headers: { 'Idempotency-Key': 'lth-buy-c2-1' },
+    body: { amount_toman: 11000000, package_toman: 11000000 }
+  });
+  assert.equal(purRes.status, 201);
+  const payRow = get('SELECT * FROM payments WHERE id = ?', [purRes.data.payment.id]);
+  const cbBody = {
+    token: payRow.callback_token,
+    outcome: 'success',
+    signature: signCallback(payRow.callback_token, 'success')
+  };
+  const cb1 = await api('/api/v1/payments/sandbox/callback', { method: 'POST', body: cbBody });
+  assert.equal(cb1.status, 200);
+  assert.equal(cb1.data.payment.lth_purchase_code, purRes.data.purchase.code);
+  // Replay callback must be idempotent (never double-credit base_atoms!)
+  const cbReplay = await api('/api/v1/payments/sandbox/callback', { method: 'POST', body: cbBody });
+  assert.equal(cbReplay.data.replay, true);
+
+  // 3) Simulate 25 hours elapsed -> multi-server reward tick settles exact-once 24h cycle
+  const holdRow = get('SELECT * FROM lth_holdings WHERE purchase_order_id = ?', [purRes.data.purchase.id]);
+  const past25hMs = Date.now() - 25 * 3600 * 1000;
+  run(
+    'UPDATE lth_holdings SET purchased_at_ms = ?, next_reward_at_ms = ? WHERE id = ?',
+    [past25hMs, past25hMs + 86400000, holdRow.id]
+  );
+  // Clear existing lease to let server-A acquire, then server-B attempt concurrently
+  run('DELETE FROM distributed_scheduler_leases');
+  const tickA = runCoordinatedRewardTick({ instanceId: 'server-node-A' });
+  const tickB = runCoordinatedRewardTick({ instanceId: 'server-node-B' });
+  assert.equal(tickA.acquired_lease, true);
+  assert.equal(tickA.cycles_settled, 1);
+  assert.equal(tickB.acquired_lease, false);
+  assert.equal(tickB.cycles_settled, 0);
+
+  // Verify 7 wallet titles on Customer2
+  const w2Res = await api('/api/v1/lth/wallet', { token: cust2.token });
+  assert.equal(w2Res.status, 200);
+  const w2 = w2Res.data.wallet;
+  assert.ok(BigInt(w2.base_atoms) > 0n);
+  assert.ok(BigInt(w2.staked_atoms) > 0n);
+  assert.ok(BigInt(w2.withdrawable_reward_atoms) > 0n);
+  assert.equal(
+    BigInt(w2.total_withdrawable_atoms),
+    BigInt(w2.base_atoms) + BigInt(w2.withdrawable_reward_atoms)
+  );
+  assert.equal(
+    BigInt(w2.total_lth_atoms),
+    BigInt(w2.base_atoms) + BigInt(w2.staked_atoms) + BigInt(w2.withdrawable_reward_atoms)
+  );
+  assert.equal(w2Res.data.reconciliation.healthy, true);
+
+  // 4) Attempting to sell/withdraw total_lth (including locked 3285-day stake) MUST fail server-side!
+  const illegalSell = await api('/api/v1/lth/withdrawals', {
+    method: 'POST',
+    token: cust2.token,
+    body: {
+      kind: 'sell_lth',
+      sheba_iban: 'IR062960000000100324200001',
+      account_holder_name: 'الهام شریفی',
+      lth_amount: w2.total_lth_exact
+    }
+  });
+  assert.equal(illegalSell.status, 409);
+
+  // 5) Account-to-Account ("حساب به حساب") transfer of withdrawable LTH keeps recipient's base_atoms untouched
+  const w1Before = (await api('/api/v1/lth/wallet', { token: cust1.token })).data.wallet;
+  const p2pRes = await api('/api/v1/lth/transfers', {
+    method: 'POST',
+    token: cust2.token,
+    body: {
+      recipient: '09120000010',
+      lth_amount: '0.00001000',
+      note: 'انتقال تست حساب به حساب'
+    }
+  });
+  assert.equal(p2pRes.status, 201);
+  const w1After = (await api('/api/v1/lth/wallet', { token: cust1.token })).data.wallet;
+  // Base LTH ("حجم پایه = فقط خریدهای اولیه") must NOT change on P2P receipt!
+  assert.equal(w1After.base_atoms, w1Before.base_atoms);
+  assert.ok(BigInt(w1After.withdrawable_reward_atoms) > BigInt(w1Before.withdrawable_reward_atoms));
+
+  // 6) Valid Sheba withdrawal + Finance settlement with bank reference
+  const shebaReq = await api('/api/v1/lth/withdrawals', {
+    method: 'POST',
+    token: cust2.token,
+    body: {
+      kind: 'sheba_withdrawal',
+      sheba_iban: 'IR062960000000100324200001',
+      account_holder_name: 'الهام شریفی',
+      amount_irr: '2200000'
+    }
+  });
+  assert.equal(shebaReq.status, 201);
+  const wdCode = shebaReq.data.withdrawal.code;
+
+  const finReview = await api(`/api/v1/staff/lth/withdrawals/${wdCode}/review`, {
+    method: 'POST',
+    token: fin.token,
+    body: { action: 'approve_paid', bank_ref: 'PAYA-99887766', review_note: 'تسویه پایا انجام شد' }
+  });
+  assert.equal(finReview.status, 200);
+  assert.equal(finReview.data.withdrawal.status, 'paid');
+
+  // 7) Admin coupled 100% Regulator (71% stake -> auto 29% withdrawable) + RBAC + Logo upload validation
+  assert.equal((await api('/api/v1/admin/lth/settings', {
+    method: 'PATCH',
+    token: fin.token,
+    body: { stake_percent: 71, reason: 'تلاش غیرمجاز مالی' }
+  })).status, 403);
+
+  const regUpdate = await api('/api/v1/admin/lth/settings', {
+    method: 'PATCH',
+    token: admin.token,
+    body: { stake_percent: 71, reason: 'ریگلاژ تست ۷۱ به ۲۹ درصد' }
+  });
+  assert.equal(regUpdate.status, 200);
+  assert.equal(regUpdate.data.config.stake_percent, 71);
+  assert.equal(regUpdate.data.config.withdrawable_percent, 29);
+
+  // Restore 70/30 default after verifying regulator
+  await api('/api/v1/admin/lth/settings', {
+    method: 'PATCH',
+    token: admin.token,
+    body: { stake_percent: 70, reason: 'بازگشت به پیش‌فرض ۷۰ به ۳۰ درصد' }
+  });
+
+  // Malicious SVG upload blocked; valid PNG upload accepted
+  const badForm = new FormData();
+  badForm.append('logo', new Blob(['<svg><script>alert(1)</script></svg>'], { type: 'image/svg+xml' }), 'bad.svg');
+  const badLogoRes = await api('/api/v1/admin/lth/logo', { method: 'POST', token: admin.token, body: badForm });
+  assert.equal(badLogoRes.status, 400);
+
+  const tinyPng = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64'
+  );
+  const okForm = new FormData();
+  okForm.append('logo', new Blob([tinyPng], { type: 'image/png' }), 'lth-logo.png');
+  const okLogoRes = await api('/api/v1/admin/lth/logo', { method: 'POST', token: admin.token, body: okForm });
+  assert.equal(okLogoRes.status, 200);
+  assert.match(okLogoRes.data.logo_path, /^\/uploads\/lth-logo-.*\.png$/);
+  const serveLogo = await api(okLogoRes.data.logo_path);
+  assert.equal(serveLogo.status, 200);
+
+  // 8) Simulate 3285-day PoS maturity unlock & verify global double-entry ledger reconciliation === 0 discrepancy!
+  run('UPDATE lth_holdings SET stake_unlock_at_ms = ? WHERE id = ?', [Date.now() - 1000, holdRow.id]);
+  const afterUnlockWallet = await api('/api/v1/lth/wallet', { token: cust2.token });
+  assert.equal(afterUnlockWallet.data.wallet.staked_atoms, '0');
+
+  const globalRec = await api('/api/v1/admin/lth/reconciliation', { token: admin.token });
+  assert.equal(globalRec.status, 200);
+  assert.equal(globalRec.data.reconciliation.healthy, true);
+  assert.equal(globalRec.data.reconciliation.mismatch_count, 0);
+  assert.equal(globalRec.data.reconciliation.reward_split_conservation_ok, true);
+});
+
