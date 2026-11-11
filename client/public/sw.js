@@ -1,9 +1,10 @@
 // CENTRAL MINE — Safe Static-Shell Service Worker (§16)
-// Strictly caches ONLY immutable static assets (/assets/*, /central-mine-logo.jpg, /icon.svg, /manifest.webmanifest).
+// Strictly caches ONLY immutable static assets (/assets/*, logos, /icon.svg, /manifest.webmanifest).
 // NEVER caches /api/*, /uploads/*, HTML user pages with dynamic state, or any private data.
 
-const CACHE_NAME = 'cm-static-shell-v2';
-const PRECACHE = ['/central-mine-logo.jpg', '/icon.svg', '/manifest.webmanifest'];
+// v3: new transparent logo; bumping the name clears the old cached logo on every device.
+const CACHE_NAME = 'cm-static-shell-v3';
+const PRECACHE = ['/central-mine-logo.svg', '/central-mine-logo.jpg', '/icon.svg', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

@@ -6,7 +6,7 @@
   "dir": "rtl",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f8fafc",
+  "background_color": "#fff5fa",
   "theme_color": "#ec1e79",
   "icons": [
     {
@@ -16,7 +16,7 @@
       "purpose": "any maskable"
     },
     {
-      "src": "/icon.svg",
+      "src": "/central-mine-logo.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"

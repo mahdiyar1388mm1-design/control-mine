@@ -6,6 +6,10 @@ import '@fontsource/vazirmatn/700.css';
 import './styles/global.css';
 import './styles/brand-overrides.css';
 import App from './App';
+import { installEmojiScrubber } from './lib/stripEmoji';
+
+// No emoji stickers anywhere on the site (pink SVG icons are used instead).
+installEmojiScrubber();
 
 // Keep the native install prompt available even if it fires before the auth page opens.
 if (typeof window !== 'undefined') {

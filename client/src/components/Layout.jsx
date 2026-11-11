@@ -3,6 +3,9 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { isStaffRole, ROLE_LABELS } from '../lib/format';
 import { OfflineBanner } from './StateViews';
+import { Icon } from './Icon';
+
+const LOGO_SRC = '/central-mine-logo.svg';
 
 export function Layout({ children }) {
   const { user, cartCount } = useAuth();
@@ -31,7 +34,7 @@ export function Layout({ children }) {
         <div className="container top-header-inner">
           <Link to="/" className="brand-logo" aria-label="CENTRAL MINE — صفحهٔ اصلی">
             <img
-              src="/central-mine-logo.jpg"
+              src={LOGO_SRC}
               alt="لوگوی رسمی CENTRAL MINE"
               className="cm-brand-mark"
             />
@@ -50,18 +53,20 @@ export function Layout({ children }) {
               aria-label="جست‌وجو در ماین"
               className="cm-header-search-input"
             />
-            <button type="submit" className="cm-header-search-btn" aria-label="جست‌وجو">🔍</button>
+            <button type="submit" className="cm-header-search-btn" aria-label="جست‌وجو">
+              <Icon name="search" size={18} />
+            </button>
           </form>
 
           <nav className="desktop-nav" aria-label="ناوبری اصلی">
             <NavLink to="/" end className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>خانه</NavLink>
-            <NavLink to="/wallet" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>🪙 کیف پول</NavLink>
-            <NavLink to="/treasury" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>🏛️ خزانه</NavLink>
-            <NavLink to="/lth-calculator" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>🧮 محاسبه‌گر</NavLink>
+            <NavLink to="/wallet" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon name="wallet" color="currentColor" /> کیف پول</NavLink>
+            <NavLink to="/treasury" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon name="landmark" color="currentColor" /> خزانه</NavLink>
+            <NavLink to="/lth-calculator" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon name="calculator" color="currentColor" /> محاسبه‌گر</NavLink>
             <NavLink to="/shop" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>فروشگاه</NavLink>
             {staff && (
               <NavLink to="/staff" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-                🛠️ پنل ({ROLE_LABELS[user.role]})
+                <Icon name="tools" color="currentColor" /> پنل ({ROLE_LABELS[user.role]})
               </NavLink>
             )}
           </nav>
@@ -70,7 +75,7 @@ export function Layout({ children }) {
             {user ? (
               <>
                 <Link to="/cart" className="nav-link" aria-label="سبد خرید">
-                  🛒
+                  <Icon name="cart" color="currentColor" size={20} />
                   {cartCount > 0 && <span className="pill-count">{cartCount.toLocaleString('fa-IR')}</span>}
                 </Link>
                 <Link
@@ -78,7 +83,7 @@ export function Layout({ children }) {
                   className="btn btn-sm"
                   style={{ background: '#ffffff', color: '#d6186c', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}
                 >
-                  <span aria-hidden="true">👤</span> حساب کاربری
+                  <Icon name="user" size={16} /> حساب کاربری
                 </Link>
               </>
             ) : (
@@ -102,9 +107,10 @@ export function Layout({ children }) {
         <div className="flex-between" style={{ flexWrap: 'wrap', gap: 12 }}>
           <div className="flex-gap" style={{ alignItems: 'center' }}>
             <img
-              src="/central-mine-logo.jpg"
+              src={LOGO_SRC}
               alt="CENTRAL MINE"
-              style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover' }}
+              className="cm-footer-logo"
+              style={{ width: 28, height: 28 }}
             />
             <span>
               <strong>CENTRAL MINE</strong> — فروشگاه تجهیزات و سامانهٔ کیف پول و خزانهٔ LTH
@@ -124,19 +130,19 @@ export function Layout({ children }) {
 
       <nav className="mobile-bottom-nav" aria-label="ناوبری موبایل" style={{ background: '#ec1e79', borderTop: 'none', gridTemplateColumns: 'repeat(4, 1fr)' }}>
         <NavLink to="/treasury" className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`} style={{ color: '#fff' }}>
-          <span>🏛️</span>
+          <Icon name="landmark" color="currentColor" size={22} />
           <span>خزانه</span>
         </NavLink>
         <NavLink to="/shop" className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`} style={{ color: '#fff' }}>
-          <span>🛍️</span>
+          <Icon name="bag" color="currentColor" size={22} />
           <span>فروشگاه</span>
         </NavLink>
         <NavLink to="/tickets" className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`} style={{ color: '#fff' }}>
-          <span>🎧</span>
+          <Icon name="headset" color="currentColor" size={22} />
           <span>پشتیبانی</span>
         </NavLink>
         <NavLink to={staff ? '/staff' : '/account'} className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`} style={{ color: '#fff' }}>
-          <span>{staff ? '🛠️' : '👤'}</span>
+          <Icon name={staff ? 'tools' : 'user'} color="currentColor" size={22} />
           <span>{staff ? 'عملیات' : 'حساب'}</span>
         </NavLink>
       </nav>

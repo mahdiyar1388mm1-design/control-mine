@@ -1,12 +1,34 @@
-/* Logos across the site: plain brand images, no sticker frame, border, outline or shadow */
+:root {
+  --cm-pink: #ec1e79;
+}
+
+/* Logos across the site: transparent brand image, no sticker frame, border, outline, shadow or white background */
 .cm-pink-header .cm-brand-mark,
+.cm-brand-mark,
 .lth-ticker-logo,
 .cm-home-brand-img,
 .brand-logo img,
-.site-logo img {
-  border: none;
-  outline: none;
-  box-shadow: none;
-  background: transparent;
-  border-radius: 6px;
+.cm-footer-logo {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  object-fit: contain !important;
+}
+
+/* Pink line icons */
+.cm-icon {
+  display: inline-block;
+  flex-shrink: 0;
+  vertical-align: -0.2em;
+}
+.nav-link .cm-icon,
+.mobile-nav-item .cm-icon,
+.btn .cm-icon,
+.badge .cm-icon {
+  vertical-align: middle;
+}
+.mobile-nav-item .cm-icon {
+  margin-bottom: 2px;
 }
