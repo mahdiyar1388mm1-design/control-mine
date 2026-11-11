@@ -1,0 +1,22 @@
+# Dependencies & build outputs
+node_modules/
+client/dist/
+dist/
+build/
+coverage/
+
+# Runtime database, private storage & secrets (NEVER commit)
+server/data/
+server/storage/
+*.db
+*.db-shm
+*.db-wal
+*.enc
+*.key
+.env
+.env.*
+!.env.example
+
+# OS / Editor
+.DS_Store
+*.log
