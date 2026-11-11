@@ -1,8 +1,12 @@
-/* Header brand logo: plain pink brand mark, no sticker frame or outline line */
-.cm-pink-header .cm-brand-mark {
+/* Logos across the site: plain brand images, no sticker frame, border, outline or shadow */
+.cm-pink-header .cm-brand-mark,
+.lth-ticker-logo,
+.cm-home-brand-img,
+.brand-logo img,
+.site-logo img {
   border: none;
   outline: none;
   box-shadow: none;
   background: transparent;
-  border-radius: 8px;
+  border-radius: 6px;
 }
