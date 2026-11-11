@@ -99,6 +99,51 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Compact sale information card that stays on the home page */
+.home-sell-info {
+  width: min(100%, 480px);
+  margin: -2px auto 12px;
+  padding: 12px 14px;
+  border: 1px solid #fbcfe8;
+  border-radius: 14px;
+  background: #fff7fb;
+  box-shadow: 0 6px 18px rgba(190, 24, 93, 0.08);
+}
+.home-sell-info-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.home-sell-info-header h2 {
+  margin: 0;
+  color: #be185d;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+.home-sell-info > p {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.8;
+}
+.home-sell-info-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border: 1px solid #fbcfe8;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #be185d;
+  cursor: pointer;
+}
+.home-sell-info-close:hover {
+  background: #fce7f3;
+}
 @media (prefers-reduced-motion: reduce) {
   .home-brand-chip {
     transition: none;

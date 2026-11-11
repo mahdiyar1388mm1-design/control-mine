@@ -32,6 +32,7 @@ export function HomePage() {
   const brandRequestIdRef = useRef(0);
   const [lthConfig, setLthConfig] = useState(null);
   const [walletData, setWalletData] = useState(null);
+  const [showSellInfo, setShowSellInfo] = useState(false);
 
   const loadHome = useCallback(async () => {
     setLoading(true);
@@ -117,10 +118,29 @@ export function HomePage() {
         <button
           type="button"
           className="lth-outline-btn pink-text"
-          onClick={() => goWalletAction('sell')}
+          aria-expanded={showSellInfo}
+          aria-controls="home-sell-info"
+          onClick={() => setShowSellInfo((open) => !open)}
         >
           فروش
         </button>
+
+        {showSellInfo && (
+          <section id="home-sell-info" className="home-sell-info" aria-labelledby="home-sell-info-title">
+            <div className="home-sell-info-header">
+              <h2 id="home-sell-info-title">فروش LTH</h2>
+              <button
+                type="button"
+                className="home-sell-info-close"
+                aria-label="بستن توضیحات فروش"
+                onClick={() => setShowSellInfo(false)}
+              >
+                <Icon name="x" size={17} color="currentColor" />
+              </button>
+            </div>
+            <p>فروش از موجودی قابل‌برداشت انجام می‌شود؛ LTH استیک‌شده تا پایان دورهٔ قفل قابل فروش نیست. معادل ریالی درخواست برای تسویهٔ شبا ثبت می‌شود.</p>
+          </section>
+        )}
 
         <button
           type="button"
