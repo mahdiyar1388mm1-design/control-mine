@@ -156,7 +156,8 @@ function createOrder(user, input, idempotencyKey) {
         JSON.stringify({
           id: address.id, title: address.title, province: address.province, city: address.city,
           address_line: address.address_line, postal_code: address.postal_code,
-          recipient_name: address.recipient_name, recipient_phone: address.recipient_phone
+          recipient_name: address.recipient_name, recipient_phone: address.recipient_phone,
+          recipient_email: address.recipient_email || null
         }),
         data.shipping_method, idempotencyKey || null, now, now]
     );

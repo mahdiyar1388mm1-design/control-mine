@@ -1222,3 +1222,188 @@ body:has(.auth-shell) {
 }
 
 
+
+/* ---------- Account dashboard (user panel) ---------- */
+.account-shell {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+.account-sidebar {
+  position: sticky;
+  top: 16px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.account-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-alt);
+}
+
+.account-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  font-size: 1.25rem;
+}
+
+.account-menu {
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+}
+
+.account-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.95rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: right;
+  width: 100%;
+  font-family: inherit;
+}
+
+.account-menu-item:hover {
+  background: var(--surface-alt);
+}
+
+.account-menu-item.active {
+  background: var(--primary-soft);
+  color: var(--primary-hover);
+}
+
+.account-menu-item.danger {
+  color: var(--danger);
+}
+
+.account-menu-item.danger:hover {
+  background: var(--danger-soft);
+}
+
+.account-menu-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.account-content {
+  min-width: 0;
+}
+
+.account-contact-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: linear-gradient(135deg, #ec1e79, #be185d);
+  color: #fff;
+  border: none;
+}
+
+.account-contact-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.account-contact-value {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.account-manage-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.account-manage-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.account-manage-item:last-child {
+  border-bottom: none;
+}
+
+.account-manage-item:hover {
+  background: var(--surface-alt);
+}
+
+.account-manage-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 10px;
+  background: var(--primary-soft);
+  font-size: 1.1rem;
+}
+
+.account-manage-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.account-manage-arrow {
+  margin-inline-start: auto;
+  color: var(--text-muted);
+}
+
+@media (min-width: 980px) {
+  .account-shell {
+    grid-template-columns: 260px 1fr;
+  }
+}
+
+@media (max-width: 979px) {
+  .account-sidebar {
+    position: static;
+  }
+  .account-menu {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .account-menu-item {
+    width: auto;
+  }
+  .account-menu-footer {
+    flex-direction: row;
+    flex-wrap: wrap;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .account-menu-footer .account-menu-item {
+    width: auto;
+  }
+}

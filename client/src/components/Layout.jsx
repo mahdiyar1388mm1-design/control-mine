@@ -5,14 +5,14 @@ import { isStaffRole, ROLE_LABELS } from '../lib/format';
 import { OfflineBanner } from './StateViews';
 
 export function Layout({ children }) {
-  const { user, cartCount, unreadCount, logout } = useAuth();
+  const { user, cartCount } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [headerSearch, setHeaderSearch] = useState('');
+  const staff = user && isStaffRole(user.role);
   if (location.pathname === '/auth') {
     return <div className="auth-shell">{children}</div>;
   }
-  const [headerSearch, setHeaderSearch] = useState('');
-  const staff = user && isStaffRole(user.role);
 
   const handleHeaderSearch = (e) => {
     e.preventDefault();
@@ -59,12 +59,6 @@ export function Layout({ children }) {
             <NavLink to="/treasury" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>🏛️ خزانه</NavLink>
             <NavLink to="/lth-calculator" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>🧮 محاسبه‌گر</NavLink>
             <NavLink to="/shop" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>فروشگاه</NavLink>
-            {user && (
-              <>
-                <NavLink to="/orders" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>سفارش‌ها</NavLink>
-                <NavLink to="/tickets" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>پشتیبانی</NavLink>
-              </>
-            )}
             {staff && (
               <NavLink to="/staff" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
                 🛠️ پنل ({ROLE_LABELS[user.role]})
@@ -79,21 +73,13 @@ export function Layout({ children }) {
                   🛒
                   {cartCount > 0 && <span className="pill-count">{cartCount.toLocaleString('fa-IR')}</span>}
                 </Link>
-                <Link to="/notifications" className="nav-link" aria-label="اعلان‌ها">
-                  🔔
-                  {unreadCount > 0 && <span className="pill-count">{unreadCount.toLocaleString('fa-IR')}</span>}
-                </Link>
-                <Link to="/account" className="nav-link">
-                  👤 {user.full_name.split(' ')[0]}
-                </Link>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={logout}
-                  style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', borderColor: 'rgba(255,255,255,0.4)' }}
+                <Link
+                  to="/account"
+                  className="btn btn-sm"
+                  style={{ background: '#ffffff', color: '#d6186c', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}
                 >
-                  خروج
-                </button>
+                  <span aria-hidden="true">👤</span> حساب کاربری
+                </Link>
               </>
             ) : (
               <Link
@@ -149,8 +135,8 @@ export function Layout({ children }) {
           <span>🎧</span>
           <span>پشتیبانی</span>
         </NavLink>
-        <NavLink to={staff ? '/staff' : '/wallet'} className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`} style={{ color: '#fff' }}>
-          <span>{staff ? '🛠️' : 'ماین'}</span>
+        <NavLink to={staff ? '/staff' : '/account'} className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`} style={{ color: '#fff' }}>
+          <span>{staff ? '🛠️' : '👤'}</span>
           <span>{staff ? 'عملیات' : 'حساب'}</span>
         </NavLink>
       </nav>

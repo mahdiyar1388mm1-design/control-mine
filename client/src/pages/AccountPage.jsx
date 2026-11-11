@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, NavLink, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { formatDateTime, ROLE_LABELS } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
@@ -247,14 +247,68 @@ export function AuthPage() {
   );
 }
 
-export function ProfileAddressesPage() {
+const ACCOUNT_MENU_ITEMS = [
+  { key: 'dashboard', to: '/account', label: 'پیشخوان حساب', icon: '🏠' },
+  { key: 'shipping', to: '/account/shipping', label: 'اطلاعات ارسال', icon: '📍' },
+  { key: 'orders', to: '/orders', label: 'سفارش‌ها', icon: '📦' },
+  { key: 'tickets', to: '/tickets', label: 'پشتیبانی', icon: '🎧' },
+  { key: 'notifications', to: '/account/notifications', label: 'اعلان‌ها', icon: '🔔' }
+];
+
+function AccountLayout({ active, title, subtitle, children }) {
+  const { user, logout } = useAuth();
+  if (!user) return null;
+  return (
+    <div className="account-shell">
+      <aside className="account-sidebar card" aria-label="منوی پنل کاربری">
+        <div className="account-identity">
+          <span className="account-avatar" aria-hidden="true">👤</span>
+          <div style={{ minWidth: 0 }}>
+            <strong style={{ display: 'block' }}>{user.full_name}</strong>
+            <span className="muted mono" style={{ fontSize: '0.82rem' }}>{user.phone}</span>
+          </div>
+        </div>
+        <nav className="account-menu">
+          {ACCOUNT_MENU_ITEMS.map((it) => (
+            <NavLink
+              key={it.key}
+              to={it.to}
+              end={it.key === 'dashboard'}
+              className={`account-menu-item ${active === it.key ? 'active' : ''}`}
+            >
+              <span aria-hidden="true">{it.icon}</span>
+              <span>{it.label}</span>
+            </NavLink>
+          ))}
+        </nav>
+        <div className="account-menu-footer">
+          <Link to="/shop" className="account-menu-item">
+            <span aria-hidden="true">🏬</span>
+            <span>بازگشت به فروشگاه</span>
+          </Link>
+          <button type="button" className="account-menu-item danger" onClick={logout}>
+            <span aria-hidden="true">⎋</span>
+            <span>خروج از حساب</span>
+          </button>
+        </div>
+      </aside>
+      <section className="account-content">
+        <div className="page-header">
+          <div>
+            <h1 className="page-title">{title}</h1>
+            {subtitle && <p className="page-subtitle">{subtitle}</p>}
+          </div>
+        </div>
+        {children}
+      </section>
+    </div>
+  );
+}
+
+export function AccountDashboardPage() {
   const { user, authLoading, refreshMe } = useAuth();
   const [profile, setProfile] = useState({ full_name: '', email: '', phone: '', current_password: '' });
   const [pwdForm, setPwdForm] = useState({ old_password: '', new_password: '' });
-  const [addresses, setAddresses] = useState([]);
-  const [addrForm, setAddrForm] = useState({
-    title: '', province: '', city: '', address_line: '', postal_code: '', recipient_name: '', recipient_phone: ''
-  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [msg, setMsg] = useState('');
@@ -269,17 +323,13 @@ export function ProfileAddressesPage() {
     setLoading(true);
     setError(null);
     try {
-      const [pRes, aRes] = await Promise.all([
-        apiFetch('/me/profile'),
-        apiFetch('/me/addresses')
-      ]);
+      const pRes = await apiFetch('/me/profile');
       setProfile({
         full_name: pRes.user.full_name || '',
         email: pRes.user.email || '',
         phone: pRes.user.phone || '',
         current_password: ''
       });
-      setAddresses(aRes.items || []);
     } catch (err) {
       setError(err);
     } finally {
@@ -291,7 +341,7 @@ export function ProfileAddressesPage() {
     if (!authLoading) loadAccount();
   }, [authLoading, loadAccount]);
 
-  if (authLoading || loading) return <LoadingState label="در حال بارگذاری حساب کاربری..." />;
+  if (authLoading || loading) return <LoadingState label="در حال بارگذاری پنل کاربری..." />;
   if (!user) return <EmptyState title="وارد حساب کاربری نشده‌اید" actionLabel="ورود" actionTo="/auth?next=/account" />;
   if (error) return <ErrorState error={error} onRetry={loadAccount} />;
 
@@ -328,6 +378,144 @@ export function ProfileAddressesPage() {
     }
   };
 
+  return (
+    <AccountLayout
+      active="dashboard"
+      title="حساب کاربری من"
+      subtitle={`به پنل کاربری ماین خوش آمدید — نقش فعلی: ${ROLE_LABELS[user.role] || user.role}`}
+    >
+      {msg && <div className="alert-inline ok" role="status">✓ {msg}</div>}
+      {opErr && (
+        <>
+          <div className="alert-inline error" role="alert">⚠️ {opErr.message}</div>
+          <FieldErrorsList details={opErr.details} />
+        </>
+      )}
+
+      <div className="card account-contact-card">
+        <div className="account-contact-label">
+          <span aria-hidden="true">📞</span>
+          <span>شماره موبایل حساب</span>
+        </div>
+        <div className="account-contact-value mono" dir="ltr">{user.phone}</div>
+      </div>
+
+      <section className="card">
+        <h2 style={{ marginTop: 0, fontSize: '1.08rem' }}>مدیریت حساب</h2>
+        <div className="account-manage-list">
+          <Link to="/account/shipping" className="account-manage-item">
+            <span className="account-manage-icon" aria-hidden="true">📍</span>
+            <span className="account-manage-text">
+              <strong>اطلاعات ارسال و آدرس‌ها</strong>
+              <span className="muted">مدیریت اطلاعات ارسال سفارش‌ها</span>
+            </span>
+            <span className="account-manage-arrow" aria-hidden="true">←</span>
+          </Link>
+          <Link to="/orders" className="account-manage-item">
+            <span className="account-manage-icon" aria-hidden="true">📦</span>
+            <span className="account-manage-text">
+              <strong>سفارش‌های من</strong>
+              <span className="muted">پیگیری و جزئیات سفارش‌ها</span>
+            </span>
+            <span className="account-manage-arrow" aria-hidden="true">←</span>
+          </Link>
+          <Link to="/tickets" className="account-manage-item">
+            <span className="account-manage-icon" aria-hidden="true">🎧</span>
+            <span className="account-manage-text">
+              <strong>پشتیبانی</strong>
+              <span className="muted">پرونده‌ها و گفتگوهای پشتیبانی</span>
+            </span>
+            <span className="account-manage-arrow" aria-hidden="true">←</span>
+          </Link>
+          <Link to="/account/notifications" className="account-manage-item">
+            <span className="account-manage-icon" aria-hidden="true">🔔</span>
+            <span className="account-manage-text">
+              <strong>اعلان‌ها</strong>
+              <span className="muted">اطلاع‌رسانی‌های درون‌سامانه‌ای</span>
+            </span>
+            <span className="account-manage-arrow" aria-hidden="true">←</span>
+          </Link>
+        </div>
+      </section>
+
+      <div className="grid grid-2">
+        <form onSubmit={handleSaveProfile} className="card">
+          <h2 style={{ marginTop: 0, fontSize: '1.08rem' }}>اطلاعات تماس و هویتی</h2>
+          <div className="form-row">
+            <label className="form-label">نام و نام خانوادگی</label>
+            <input className="input" required value={profile.full_name} onChange={(e) => setProfile({ ...profile, full_name: e.target.value })} />
+          </div>
+          <div className="form-row">
+            <label className="form-label">رایانامه</label>
+            <input className="input mono" value={profile.email} onChange={(e) => setProfile({ ...profile, email: e.target.value })} />
+          </div>
+          <div className="form-row">
+            <label className="form-label">شماره موبایل (تغییر آن نیازمند رمز فعلی است)</label>
+            <input className="input mono" required value={profile.phone} onChange={(e) => setProfile({ ...profile, phone: e.target.value })} />
+          </div>
+          {profile.phone !== user.phone && (
+            <div className="form-row">
+              <label className="form-label">رمز عبور فعلی جهت تأیید مالکیت <span className="req-star">*</span></label>
+              <input type="password" className="input" required value={profile.current_password} onChange={(e) => setProfile({ ...profile, current_password: e.target.value })} />
+            </div>
+          )}
+          <button type="submit" className="btn btn-primary" disabled={busy}>ذخیرهٔ تغییرات پروفایل</button>
+        </form>
+
+        <form onSubmit={handleChangePassword} className="card">
+          <h2 style={{ marginTop: 0, fontSize: '1.08rem' }}>تغییر رمز عبور و بستن نشست‌های دیگر</h2>
+          <div className="form-row">
+            <label className="form-label">رمز عبور فعلی <span className="req-star">*</span></label>
+            <input type="password" className="input" required value={pwdForm.old_password} onChange={(e) => setPwdForm({ ...pwdForm, old_password: e.target.value })} />
+          </div>
+          <div className="form-row">
+            <label className="form-label">رمز عبور جدید (حداقل ۸ حرف شامل حرف و عدد) <span className="req-star">*</span></label>
+            <input type="password" className="input" required minLength={8} value={pwdForm.new_password} onChange={(e) => setPwdForm({ ...pwdForm, new_password: e.target.value })} />
+          </div>
+          <button type="submit" className="btn btn-secondary" disabled={busy}>تغییر رمز عبور</button>
+        </form>
+      </div>
+    </AccountLayout>
+  );
+}
+
+export function ProfileAddressesPage() {
+  const { user, authLoading } = useAuth();
+  const [addresses, setAddresses] = useState([]);
+  const [addrForm, setAddrForm] = useState({
+    title: '', province: '', city: '', address_line: '', postal_code: '', recipient_name: '', recipient_phone: '', recipient_email: ''
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [msg, setMsg] = useState('');
+  const [opErr, setOpErr] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const loadAccount = useCallback(async () => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const aRes = await apiFetch('/me/addresses');
+      setAddresses(aRes.items || []);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!authLoading) loadAccount();
+  }, [authLoading, loadAccount]);
+
+  if (authLoading || loading) return <LoadingState label="در حال بارگذاری حساب کاربری..." />;
+  if (!user) return <EmptyState title="وارد حساب کاربری نشده‌اید" actionLabel="ورود" actionTo="/auth?next=/account" />;
+  if (error) return <ErrorState error={error} onRetry={loadAccount} />;
+
   const handleAddAddress = async (e) => {
     e.preventDefault();
     setBusy(true);
@@ -335,7 +523,7 @@ export function ProfileAddressesPage() {
     setOpErr(null);
     try {
       await apiFetch('/me/addresses', { method: 'POST', body: addrForm });
-      setAddrForm({ title: '', province: '', city: '', address_line: '', postal_code: '', recipient_name: '', recipient_phone: '' });
+      setAddrForm({ title: '', province: '', city: '', address_line: '', postal_code: '', recipient_name: '', recipient_phone: '', recipient_email: '' });
       await loadAccount();
       setMsg('نشانی جدید ثبت شد.');
     } catch (err) {
@@ -361,14 +549,7 @@ export function ProfileAddressesPage() {
   };
 
   return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">حساب کاربری من</h1>
-          <p className="page-subtitle">نقش فعلی: <strong>{ROLE_LABELS[user.role] || user.role}</strong></p>
-        </div>
-      </div>
-
+    <AccountLayout active="shipping" title="اطلاعات ارسال" subtitle="نشانی‌ها و اطلاعات گیرندهٔ سفارش‌های شما">
       {msg && <div className="alert-inline ok" role="status">✓ {msg}</div>}
       {opErr && (
         <>
@@ -432,6 +613,7 @@ export function ProfileAddressesPage() {
                 <p style={{ margin: '6px 0', fontSize: '0.88rem' }}>{a.province}، {a.city}، {a.address_line}</p>
                 <div className="muted" style={{ fontSize: '0.8rem' }}>
                   کدپستی: <span className="mono">{a.postal_code}</span> • گیرنده: {a.recipient_name} (<span className="mono">{a.recipient_phone}</span>)
+                  {a.recipient_email && <> • ایمیل: <span className="mono">{a.recipient_email}</span></>}
                 </div>
               </div>
             ))}
@@ -439,7 +621,8 @@ export function ProfileAddressesPage() {
         )}
 
         <form onSubmit={handleAddAddress} style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 14 }}>
-          <h3 style={{ marginTop: 0, fontSize: '0.98rem' }}>افزودن نشانی جدید</h3>
+          <h3 style={{ marginTop: 0, fontSize: '0.98rem' }}>اطلاعات ارسال و نشانی جدید</h3>
+          <p className="muted" style={{ marginTop: -6, fontSize: '.84rem' }}>این نشانی برای سفارش‌های بعدی در دفترچهٔ آدرس شما ذخیره می‌شود.</p>
           <div className="grid grid-3">
             <div className="form-row">
               <label className="form-label">عنوان نشانی <span className="req-star">*</span></label>
@@ -471,11 +654,15 @@ export function ProfileAddressesPage() {
               <label className="form-label">شماره موبایل گیرنده <span className="req-star">*</span></label>
               <input className="input mono" required placeholder="09121234567" value={addrForm.recipient_phone} onChange={(e) => setAddrForm({ ...addrForm, recipient_phone: e.target.value })} />
             </div>
+            <div className="form-row">
+              <label className="form-label">ایمیل گیرنده (اختیاری)</label>
+              <input type="email" className="input mono" autoComplete="email" placeholder="name@example.com" value={addrForm.recipient_email} onChange={(e) => setAddrForm({ ...addrForm, recipient_email: e.target.value })} />
+            </div>
           </div>
           <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>ثبت نشانی</button>
         </form>
       </section>
-    </div>
+    </AccountLayout>
   );
 }
 
@@ -523,18 +710,14 @@ export function NotificationsPage() {
   if (error) return <ErrorState error={error} onRetry={loadNotifs} />;
 
   return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">اعلان‌های درون‌سامانه‌ای</h1>
-          <p className="page-subtitle">اطلاع‌رسانی تغییرات سفارش، پروندهٔ خدمت و پاسخ‌های پشتیبانی</p>
-        </div>
-        {data.unread_count > 0 && (
+    <AccountLayout active="notifications" title="اعلان‌های درون‌سامانه‌ای" subtitle="اطلاع‌رسانی تغییرات سفارش، پروندهٔ خدمت و پاسخ‌های پشتیبانی">
+      {data.unread_count > 0 && (
+        <div style={{ marginBottom: 12 }}>
           <button type="button" className="btn btn-secondary btn-sm" onClick={markAllRead}>
             ✓ خوانده‌شدن همه ({data.unread_count.toLocaleString('fa-IR')})
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {data.items.length === 0 ? (
         <EmptyState title="اعلانی وجود ندارد" />
@@ -568,6 +751,6 @@ export function NotificationsPage() {
           ))}
         </div>
       )}
-    </div>
+    </AccountLayout>
   );
 }

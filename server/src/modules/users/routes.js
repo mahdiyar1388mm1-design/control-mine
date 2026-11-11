@@ -9,6 +9,7 @@ const { verifyPassword } = require('../../utils/password');
 const { audit } = require('../platform/service');
 
 const router = express.Router();
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 router.use(requireAuth);
 
@@ -69,6 +70,7 @@ router.post('/addresses', (req, res, next) => {
       .string('postal_code', { min: 10, max: 10 })
       .string('recipient_name', { min: 3, max: 80 })
       .string('recipient_phone', { min: 11, max: 11, pattern: PHONE_RE, patternMessage: 'شمارهٔ گیرنده معتبر نیست.' })
+      .string('recipient_email', { required: false, max: 120, pattern: EMAIL_RE, patternMessage: 'ایمیل گیرنده معتبر نیست.', default: null })
       .bool('is_default', { default: false })
       .done();
     const id = uuid();
@@ -78,10 +80,10 @@ router.post('/addresses', (req, res, next) => {
       }
       const count = get('SELECT COUNT(*) AS c FROM user_addresses WHERE user_id = ?', [req.user.id]).c;
       run(
-        `INSERT INTO user_addresses (id, user_id, title, province, city, address_line, postal_code, recipient_name, recipient_phone, is_default, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO user_addresses (id, user_id, title, province, city, address_line, postal_code, recipient_name, recipient_phone, recipient_email, is_default, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [id, req.user.id, data.title, data.province, data.city, data.address_line, data.postal_code,
-          data.recipient_name, data.recipient_phone, data.is_default || count === 0 ? 1 : 0, nowIso()]
+          data.recipient_name, data.recipient_phone, data.recipient_email, data.is_default || count === 0 ? 1 : 0, nowIso()]
       );
     });
     res.status(201).json({ address: get('SELECT * FROM user_addresses WHERE id = ?', [id]) });
@@ -99,6 +101,7 @@ router.patch('/addresses/:id', (req, res, next) => {
       .string('postal_code', { required: false, min: 10, max: 10 })
       .string('recipient_name', { required: false, min: 3, max: 80 })
       .string('recipient_phone', { required: false, min: 11, max: 11, pattern: PHONE_RE, patternMessage: 'شمارهٔ گیرنده معتبر نیست.' })
+      .string('recipient_email', { required: false, max: 120, pattern: EMAIL_RE, patternMessage: 'ایمیل گیرنده معتبر نیست.', default: undefined })
       .bool('is_default', {})
       .done();
     tx(() => {
@@ -108,9 +111,9 @@ router.patch('/addresses/:id', (req, res, next) => {
       const merged = { ...existing, ...data };
       run(
         `UPDATE user_addresses SET title = ?, province = ?, city = ?, address_line = ?, postal_code = ?,
-           recipient_name = ?, recipient_phone = ?, is_default = ? WHERE id = ?`,
+           recipient_name = ?, recipient_phone = ?, recipient_email = ?, is_default = ? WHERE id = ?`,
         [merged.title, merged.province, merged.city, merged.address_line, merged.postal_code,
-          merged.recipient_name, merged.recipient_phone, merged.is_default ? 1 : 0, existing.id]
+          merged.recipient_name, merged.recipient_phone, merged.recipient_email || null, merged.is_default ? 1 : 0, existing.id]
       );
     });
     res.json({ address: get('SELECT * FROM user_addresses WHERE id = ?', [existing.id]) });

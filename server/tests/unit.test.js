@@ -76,10 +76,10 @@ test('unit: scenario #20 — versioned migration, rollback, and AES-256-GCM encr
   assert.equal(bkp.encrypted, true);
   assert.ok(bkp.path.endsWith('.enc'));
 
-  // Rollback migrations 003_lth_treasury_protocol + 002_lth_wallet + 001_init and re-apply cleanly
-  const rolled = rollback(3);
-  assert.deepEqual(rolled, ['003_lth_treasury_protocol', '002_lth_wallet', '001_init']);
-  const tablesAfterDown = get("SELECT COUNT(*) AS c FROM sqlite_master WHERE type='table' AND name IN ('orders','lth_wallets','lth_treasury_config')").c;
+  // Rollback migrations 004_address_recipient_email + 003_lth_treasury_protocol + 002_lth_wallet + 001_init and re-apply cleanly
+  const rolled = rollback(4);
+  assert.deepEqual(rolled, ['004_address_recipient_email', '003_lth_treasury_protocol', '002_lth_wallet', '001_init']);
+  const tablesAfterDown = get("SELECT COUNT(*) AS c FROM sqlite_master WHERE type='table' AND name IN ('orders','lth_wallets','lth_treasury_config','user_addresses')").c;
   assert.equal(tablesAfterDown, 0);
 
   // Re-migrate and verify clean schema

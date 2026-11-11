@@ -29,7 +29,8 @@ export function CartCheckoutPage() {
     address_line: '',
     postal_code: '',
     recipient_name: '',
-    recipient_phone: ''
+    recipient_phone: '',
+    recipient_email: ''
   });
   const [addrSaving, setAddrSaving] = useState(false);
   const [addrError, setAddrError] = useState(null);
@@ -58,7 +59,8 @@ export function CartCheckoutPage() {
         setAddrForm((prev) => ({
           ...prev,
           recipient_name: prev.recipient_name || user.full_name || '',
-          recipient_phone: prev.recipient_phone || user.phone || ''
+          recipient_phone: prev.recipient_phone || user.phone || '',
+          recipient_email: prev.recipient_email || user.email || ''
         }));
       }
     } catch (err) {
@@ -109,7 +111,7 @@ export function CartCheckoutPage() {
     try {
       const res = await apiFetch('/me/addresses', {
         method: 'POST',
-        body: { ...addrForm, is_default: true }
+        body: { ...addrForm, recipient_email: addrForm.recipient_email.trim() || undefined, is_default: true }
       });
       const nextList = [res.address, ...addresses];
       setAddresses(nextList);
@@ -258,7 +260,7 @@ export function CartCheckoutPage() {
 
           <section className="card">
             <div className="flex-between" style={{ marginBottom: 10 }}>
-              <h2 style={{ margin: 0, fontSize: '1.1rem' }}>نشانی تحویل گیرنده</h2>
+              <h2 style={{ margin: 0, fontSize: '1.1rem' }}>اطلاعات ارسال و نشانی تحویل</h2>
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowAddrForm((v) => !v)}>
                 {showAddrForm ? 'بستن فرم نشانی جدید' : '+ افزودن نشانی جدید'}
               </button>
@@ -287,6 +289,7 @@ export function CartCheckoutPage() {
                     <strong>{a.title}</strong> — {a.province}، {a.city}، {a.address_line}
                     <div className="muted" style={{ fontSize: '0.8rem', marginTop: 3 }}>
                       کدپستی: <span className="mono">{a.postal_code}</span> • گیرنده: {a.recipient_name} (<span className="mono">{a.recipient_phone}</span>)
+                      {a.recipient_email && <> • ایمیل: <span className="mono">{a.recipient_email}</span></>}
                     </div>
                   </label>
                 ))}
@@ -295,7 +298,8 @@ export function CartCheckoutPage() {
 
             {showAddrForm && (
               <form onSubmit={handleSaveAddress} style={{ background: 'var(--surface-alt)', padding: 14, borderRadius: 8 }}>
-                <h3 style={{ marginTop: 0, fontSize: '0.98rem' }}>ثبت نشانی جدید</h3>
+                <h3 style={{ marginTop: 0, fontSize: '0.98rem' }}>اطلاعات گیرنده و نشانی جدید</h3>
+                <p className="muted" style={{ marginTop: -6, fontSize: '.82rem' }}>نشانی ذخیره می‌شود تا در سفارش‌های بعدی دوباره واردش نکنید.</p>
                 {addrError && (
                   <>
                     <div className="alert-inline error">⚠️ {addrError.message}</div>
@@ -331,7 +335,11 @@ export function CartCheckoutPage() {
                   </div>
                   <div className="form-row">
                     <label className="form-label">موبایل گیرنده <span className="req-star">*</span></label>
-                    <input className="input mono" required placeholder="09121234567" value={addrForm.recipient_phone} onChange={(e) => setAddrForm({ ...addrForm, recipient_phone: e.target.value })} />
+                    <input className="input mono" type="tel" inputMode="numeric" autoComplete="tel" required placeholder="09121234567" value={addrForm.recipient_phone} onChange={(e) => setAddrForm({ ...addrForm, recipient_phone: e.target.value })} />
+                  </div>
+                  <div className="form-row">
+                    <label className="form-label">ایمیل گیرنده (اختیاری)</label>
+                    <input className="input mono" type="email" autoComplete="email" placeholder="name@example.com" value={addrForm.recipient_email} onChange={(e) => setAddrForm({ ...addrForm, recipient_email: e.target.value })} />
                   </div>
                 </div>
                 <button type="submit" className="btn btn-primary btn-sm" disabled={addrSaving}>
