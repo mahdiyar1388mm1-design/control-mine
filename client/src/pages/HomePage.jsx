@@ -13,7 +13,6 @@ export function HomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [products, setProducts] = useState([]);
-  const [services, setServices] = useState([]);
   const [lthConfig, setLthConfig] = useState(null);
   const [walletData, setWalletData] = useState(null);
   const [treasury, setTreasury] = useState(null);
@@ -24,16 +23,14 @@ export function HomePage() {
     try {
       const requests = [
         apiFetch('/products?limit=4&sort=newest'),
-        apiFetch('/services?limit=4'),
         apiFetch('/lth/config'),
         apiFetch('/lth/treasury')
       ];
       if (user) {
         requests.push(apiFetch('/lth/wallet').catch(() => null));
       }
-      const [pRes, sRes, cRes, tRes, wRes] = await Promise.all(requests);
+      const [pRes, cRes, tRes, wRes] = await Promise.all(requests);
       setProducts(pRes.items || []);
-      setServices(sRes.items || []);
       setLthConfig(cRes.config || null);
       setTreasury(tRes.treasury || null);
       setWalletData(wRes?.wallet || null);
@@ -159,38 +156,6 @@ export function HomePage() {
             )}
           </section>
 
-          <section>
-            <div className="flex-between" style={{ marginBottom: 12 }}>
-              <h2 style={{ margin: 0, fontSize: '1.25rem' }}>خدمات فنی و عملیاتی قابل ثبت آنلاین</h2>
-              <Link to="/services" className="btn btn-secondary btn-sm">فهرست کامل خدمات ←</Link>
-            </div>
-            {services.length === 0 ? (
-              <EmptyState title="خدمت فعالی ثبت نشده است" />
-            ) : (
-              <div className="grid grid-2">
-                {services.map((s) => (
-                  <article key={s.id} className="card" style={{ marginBottom: 0 }}>
-                    <div className="flex-between" style={{ marginBottom: 6 }}>
-                      <span className="badge badge-info">
-                        ⚙️ {(typeof s.category === 'object' ? s.category?.name : s.category) || 'خدمت تخصصی'}
-                      </span>
-                      <span className="badge badge-neutral">
-                        ⏱️ تعهد SLA: {Number(s.sla_hours || 0).toLocaleString('fa-IR')} ساعت
-                      </span>
-                    </div>
-                    <h3 style={{ margin: '8px 0 6px', fontSize: '1.06rem' }}>{s.name || s.title}</h3>
-                    <p className="muted" style={{ margin: '0 0 12px', fontSize: '0.9rem' }}>{s.description || s.summary}</p>
-                    <div className="flex-between">
-                      <strong>تعرفه: {formatMoney(s.price_toman ?? s.base_price_toman ?? 0, { freeLabel: true })}</strong>
-                      <Link to={`/services/${s.slug}`} className="btn btn-primary btn-sm">
-                        مشاهدهٔ شرایط و ثبت درخواست
-                      </Link>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
         </>
       )}
     </div>
