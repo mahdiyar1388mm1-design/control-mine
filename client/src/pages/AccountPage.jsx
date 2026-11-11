@@ -104,7 +104,6 @@ export function AuthPage() {
       <section className="auth-card" aria-label="ورود به حساب کاربری">
         <div className="auth-form-panel">
           <div className="auth-form-heading">
-            <Link to="/" className="auth-mobile-brand">✧ <span>Central Mine</span></Link>
             <h1>{mode === 'register' ? 'ایجاد حساب کاربری' : mode === 'otp' ? 'ورود با کد یک‌بارمصرف' : 'ورود به حساب کاربری'}</h1>
           </div>
 
@@ -192,16 +191,6 @@ export function AuthPage() {
           <p className="auth-security-note"><span aria-hidden="true">♢</span> امنیت اطلاعات شما برای ما اهمیت دارد</p>
         </div>
 
-        <aside className="auth-promo-panel">
-          <Link to="/" className="auth-brand"><span className="auth-brand-mark" aria-hidden="true">✧</span><span>Central Mine</span></Link>
-          <div className="auth-promo-copy">
-            <span className="auth-promo-badge"><span aria-hidden="true">♢</span> تجربه‌ای امن و متفاوت</span>
-            <h2>ورود به دنیای<br />فرصت‌های تازه</h2>
-            <p>همه‌چیز از یک شروع مطمئن آغاز می‌شود. به حساب کاربری خود وارد شوید و تجربه‌ای ساده، سریع و دلنشین داشته باشید.</p>
-          </div>
-          <div className="auth-promo-footer"><span>طراحی اختصاصی سنترال ماین</span><span aria-hidden="true">●</span></div>
-          <span className="auth-orbit auth-orbit-one" aria-hidden="true" /><span className="auth-orbit auth-orbit-two" aria-hidden="true" />
-        </aside>
       </section>
     </div>
   );
