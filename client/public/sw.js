@@ -1,10 +1,9 @@
 // CENTRAL MINE — Safe Static-Shell Service Worker (§16)
-// Strictly caches ONLY immutable static assets (/assets/*, /icon.svg, /manifest.webmanifest).
+// Strictly caches ONLY immutable static assets (/assets/*, /central-mine-logo.jpg, /icon.svg, /manifest.webmanifest).
 // NEVER caches /api/*, /uploads/*, HTML user pages with dynamic state, or any private data.
-// NEVER queues financial, order, or service-request mutations in the background.
 
-const CACHE_NAME = 'cm-static-shell-v1';
-const PRECACHE = ['/icon.svg', '/manifest.webmanifest'];
+const CACHE_NAME = 'cm-static-shell-v2';
+const PRECACHE = ['/central-mine-logo.jpg', '/icon.svg', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -26,18 +25,17 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  // Never intercept API, private files, payment gateway, or uploads
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/uploads/') || url.pathname === '/health') {
     return;
   }
 
-  // Cache-first ONLY for hashed Vite static assets and static icons
   if (url.pathname.startsWith('/assets/') || PRECACHE.includes(url.pathname)) {
     event.respondWith(
       caches.match(request).then((cached) => {
         if (cached) return cached;
         return fetch(request).then((response) => {
-          if (response.ok) {
+          const ct = (response.headers.get('content-type') || '').toLowerCase();
+          if (response.ok && !ct.includes('text/html')) {
             const copy = response.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
           }

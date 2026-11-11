@@ -137,16 +137,28 @@ function createApp() {
 
   // Serve built frontend SPA when present
   if (fs.existsSync(config.clientDist)) {
-    app.use('/assets', express.static(path.join(config.clientDist, 'assets'), {
-      immutable: true,
-      maxAge: '365d'
-    }));
+    app.get('/sw.js', (req, res, next) => {
+      const swFile = path.join(config.clientDist, 'sw.js');
+      if (!fs.existsSync(swFile)) return next();
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+      return res.sendFile(swFile);
+    });
+    app.use(
+      '/assets',
+      express.static(path.join(config.clientDist, 'assets'), {
+        immutable: true,
+        maxAge: '365d'
+      }),
+      (req, res) => res.status(404).type('text/plain').send('Asset not found')
+    );
     app.use(express.static(config.clientDist, {
       index: false,
       maxAge: '1h'
     }));
     app.get('*', (req, res, next) => {
-      if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) return next();
+      if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/') || req.path.startsWith('/assets/')) {
+        return next();
+      }
       const indexFile = path.join(config.clientDist, 'index.html');
       if (!fs.existsSync(indexFile)) return next();
       res.setHeader('Cache-Control', 'no-cache');

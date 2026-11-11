@@ -169,21 +169,22 @@ export function HomePage() {
             ) : (
               <div className="grid grid-2">
                 {services.map((s) => (
-                  <article key={s.id} className="card" style={{ marginBottom: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                    <div>
-                      <div className="flex-between" style={{ marginBottom: 6 }}>
-                        <span className="badge badge-info">{s.category || 'خدمات تخصصی'}</span>
-                        <span className="muted" style={{ fontSize: '0.8rem' }}>SLA هدف: {s.sla_hours.toLocaleString('fa-IR')} ساعت</span>
-                      </div>
-                      <h3 style={{ margin: '0 0 6px', fontSize: '1.08rem' }}>{s.title}</h3>
-                      <p className="muted" style={{ margin: '0 0 12px', fontSize: '0.9rem' }}>{s.summary}</p>
+                  <article key={s.id} className="card" style={{ marginBottom: 0 }}>
+                    <div className="flex-between" style={{ marginBottom: 6 }}>
+                      <span className="badge badge-info">
+                        ⚙️ {(typeof s.category === 'object' ? s.category?.name : s.category) || 'خدمت تخصصی'}
+                      </span>
+                      <span className="badge badge-neutral">
+                        ⏱️ تعهد SLA: {Number(s.sla_hours || 0).toLocaleString('fa-IR')} ساعت
+                      </span>
                     </div>
-                    <div className="flex-between" style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 12 }}>
-                      <div>
-                        <span className="muted" style={{ fontSize: '0.8rem', display: 'block' }}>هزینهٔ پایهٔ بررسی</span>
-                        <strong style={{ color: 'var(--primary)' }}>{formatMoney(s.base_price_toman)}</strong>
-                      </div>
-                      <Link to={`/services/${s.slug}`} className="btn btn-primary btn-sm">ثبت درخواست ←</Link>
+                    <h3 style={{ margin: '8px 0 6px', fontSize: '1.06rem' }}>{s.name || s.title}</h3>
+                    <p className="muted" style={{ margin: '0 0 12px', fontSize: '0.9rem' }}>{s.description || s.summary}</p>
+                    <div className="flex-between">
+                      <strong>تعرفه: {formatMoney(s.price_toman ?? s.base_price_toman ?? 0, { freeLabel: true })}</strong>
+                      <Link to={`/services/${s.slug}`} className="btn btn-primary btn-sm">
+                        مشاهدهٔ شرایط و ثبت درخواست
+                      </Link>
                     </div>
                   </article>
                 ))}
