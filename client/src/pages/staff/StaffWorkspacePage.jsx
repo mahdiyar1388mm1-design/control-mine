@@ -24,7 +24,7 @@ export function StaffWorkspacePage() {
       allowedSections.push({ id: 'finance-reports', label: user.role === 'finance' ? '💳 امور مالی و گزارش‌ها' : '📊 گزارش‌های مجاز' });
     }
     if (['admin', 'finance'].includes(user.role)) {
-      allowedSections.push({ id: 'lth-protocol', label: '🔍 سرچ پروتکل، خزانه و موازین LTH' });
+      allowedSections.push({ id: 'lth-protocol', label: '🔍 سرچ پروتکل و موازین LTH' });
     }
     if (user.role === 'admin') {
       allowedSections.push({ id: 'admin', label: '🛡️ مدیریت سامانه و ممیزی' });
@@ -34,8 +34,10 @@ export function StaffWorkspacePage() {
   const [activeSection, setActiveSection] = useState('');
 
   useEffect(() => {
-    if (allowedSections.length > 0 && !allowedSections.some((s) => s.id === activeSection)) {
-      setActiveSection(allowedSections[0].id);
+    if (!allowedSections.length) return;
+    const activeSectionIsAllowed = allowedSections.some((section) => section.id === activeSection);
+    if (!activeSectionIsAllowed || (!activeSection && user?.role === 'admin')) {
+      setActiveSection(user?.role === 'admin' ? 'admin' : allowedSections[0].id);
     }
   }, [user, activeSection]); // eslint-disable-line react-hooks/exhaustive-deps
 

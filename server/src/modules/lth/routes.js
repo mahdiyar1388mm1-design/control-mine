@@ -22,12 +22,6 @@ router.get('/lth/config', (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get('/lth/treasury', (req, res, next) => {
-  try {
-    res.json({ treasury: lth.getTreasuryView() });
-  } catch (err) { next(err); }
-});
-
 router.post('/lth/calculate', rateLimit({ name: 'lth-calc', windowSec: 60, max: 120 }), (req, res, next) => {
   try {
     res.json(lth.calculateEndpoint(req.body || {}));

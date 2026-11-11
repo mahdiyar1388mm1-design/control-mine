@@ -32,7 +32,6 @@ export function HomePage() {
   const brandRequestIdRef = useRef(0);
   const [lthConfig, setLthConfig] = useState(null);
   const [walletData, setWalletData] = useState(null);
-  const [treasury, setTreasury] = useState(null);
 
   const loadHome = useCallback(async () => {
     setLoading(true);
@@ -41,17 +40,15 @@ export function HomePage() {
       const requests = [
         apiFetch('/products?limit=100&sort=newest'),
         apiFetch('/brands'),
-        apiFetch('/lth/config'),
-        apiFetch('/lth/treasury')
+        apiFetch('/lth/config')
       ];
       if (user) {
         requests.push(apiFetch('/lth/wallet').catch(() => null));
       }
-      const [pRes, bRes, cRes, tRes, wRes] = await Promise.all(requests);
+      const [pRes, bRes, cRes, wRes] = await Promise.all(requests);
       setProducts(pRes.items || []);
       setBrands(bRes.items || []);
       setLthConfig(cRes.config || null);
-      setTreasury(tRes.treasury || null);
       setWalletData(wRes?.wallet || null);
     } catch (err) {
       setError(err);
@@ -133,14 +130,9 @@ export function HomePage() {
           قرارداد هوشمند (PoS)
         </button>
 
-        <div className="grid grid-2" style={{ gap: 10 }}>
-          <Link to="/treasury" className="lth-filled-btn" style={{ marginBottom: 0 }}>
-            <Icon name="landmark" color="currentColor" /> خزانه پروتکل ({treasury ? `LTH ${treasury.asset_lth_headline}` : '15.000.000 LTH'})
-          </Link>
-          <Link to="/lth-calculator" className="lth-outline-btn pink-text" style={{ marginBottom: 0 }}>
-            <Icon name="calculator" /> خرید پکیج و محاسبه‌گر
-          </Link>
-        </div>
+        <Link to="/lth-calculator" className="lth-outline-btn pink-text" style={{ marginBottom: 0 }}>
+          <Icon name="calculator" /> خرید پکیج و محاسبه‌گر
+        </Link>
       </div>
 
       {loading && <LoadingState label="در حال بارگذاری محصولات..." />}

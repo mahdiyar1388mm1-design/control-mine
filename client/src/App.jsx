@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Link, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { Layout } from './components/Layout';
 import { HomePage } from './pages/HomePage';
@@ -11,7 +11,6 @@ import { TicketDetailPage, TicketsListPage } from './pages/SupportPage';
 import { AccountDashboardPage, AuthPage, NotificationsPage, ProfileAddressesPage } from './pages/AccountPage';
 import { LthWalletPage } from './pages/LthWalletPage';
 import { LthCalculatorPage } from './pages/LthCalculatorPage';
-import { LthTreasuryPage } from './pages/LthTreasuryPage';
 import { StaffWorkspacePage } from './pages/staff/StaffWorkspacePage';
 
 function NotFoundPage() {
@@ -63,7 +62,7 @@ export default function App() {
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/wallet" element={<LthWalletPage />} />
-              <Route path="/treasury" element={<LthTreasuryPage />} />
+              <Route path="/treasury" element={<Navigate to="/staff" replace />} />
               <Route path="/lth-calculator" element={<LthCalculatorPage />} />
               <Route path="/shop" element={<ShopPage />} />
               <Route path="/products/:slug" element={<ProductDetailPage />} />

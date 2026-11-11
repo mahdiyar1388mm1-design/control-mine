@@ -61,7 +61,6 @@ export function Layout({ children }) {
           <nav className="desktop-nav" aria-label="ناوبری اصلی">
             <NavLink to="/" end className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>خانه</NavLink>
             <NavLink to="/wallet" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon name="wallet" color="currentColor" /> کیف پول</NavLink>
-            <NavLink to="/treasury" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon name="landmark" color="currentColor" /> خزانه</NavLink>
             <NavLink to="/lth-calculator" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon name="calculator" color="currentColor" /> محاسبه‌گر</NavLink>
             <NavLink to="/shop" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>فروشگاه</NavLink>
             {staff && (
@@ -113,12 +112,10 @@ export function Layout({ children }) {
               style={{ width: 28, height: 28 }}
             />
             <span>
-              <strong>CENTRAL MINE</strong> — فروشگاه تجهیزات و سامانهٔ کیف پول و خزانهٔ LTH
+              <strong>CENTRAL MINE</strong> — فروشگاه تجهیزات و سامانهٔ کیف پول LTH
             </span>
           </div>
           <div className="flex-gap">
-            <Link to="/treasury">خزانه پروتکل</Link>
-            <span>•</span>
             <Link to="/wallet">کیف پول LTH</Link>
             <span>•</span>
             <Link to="/shop">فروشگاه</Link>
@@ -128,11 +125,7 @@ export function Layout({ children }) {
         </div>
       </footer>
 
-      <nav className="mobile-bottom-nav" aria-label="ناوبری موبایل" style={{ background: '#ec1e79', borderTop: 'none', gridTemplateColumns: 'repeat(4, 1fr)' }}>
-        <NavLink to="/treasury" className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`} style={{ color: '#fff' }}>
-          <Icon name="landmark" color="currentColor" size={22} />
-          <span>خزانه</span>
-        </NavLink>
+      <nav className="mobile-bottom-nav" aria-label="ناوبری موبایل" style={{ background: '#ec1e79', borderTop: 'none', gridTemplateColumns: 'repeat(3, 1fr)' }}>
         <NavLink to="/shop" className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`} style={{ color: '#fff' }}>
           <Icon name="bag" color="currentColor" size={22} />
           <span>فروشگاه</span>
