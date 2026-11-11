@@ -62,6 +62,10 @@ export default function App() {
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/wallet" element={<LthWalletPage />} />
+              <Route path="/wallet/sell" element={<LthWalletPage />} />
+              <Route path="/wallet/sheba" element={<LthWalletPage />} />
+              <Route path="/wallet/contracts" element={<LthWalletPage />} />
+              <Route path="/wallet/p2p" element={<LthWalletPage />} />
               <Route path="/treasury" element={<Navigate to="/staff" replace />} />
               <Route path="/lth-calculator" element={<LthCalculatorPage />} />
               <Route path="/shop" element={<ShopPage />} />

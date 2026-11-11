@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { addCommas } from '../lib/lthMath';
 import { formatDateTime, formatMoney } from '../lib/format';
@@ -8,10 +8,23 @@ import { LthTopBar } from '../components/LthTopBar';
 import { LthWalletCard } from '../components/LthWalletCard';
 import { EmptyState, ErrorState, FieldErrorsList, LoadingState, StatusBadge } from '../components/StateViews';
 
+const WALLET_PANELS = ['sheba', 'sell', 'contracts', 'p2p'];
+const WALLET_PANEL_TITLES = {
+  sheba: 'برداشت شبا',
+  sell: 'فروش LTH',
+  contracts: 'قراردادهای هوشمند',
+  p2p: 'انتقال حساب به حساب (PAY)'
+};
+
 export function LthWalletPage() {
   const { user, authLoading } = useAuth();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const initialPanel = searchParams.get('panel') || 'contracts'; // sheba | sell | contracts | p2p
+  const navigate = useNavigate();
+  const { panel: routePanel } = useParams();
+  const [searchParams] = useSearchParams();
+  const queryPanel = searchParams.get('panel');
+  const requestedPanel = routePanel || queryPanel || 'contracts';
+  const initialPanel = WALLET_PANELS.includes(requestedPanel) ? requestedPanel : 'contracts';
+  const isDedicatedPanelPage = WALLET_PANELS.includes(routePanel);
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -45,17 +58,15 @@ export function LthWalletPage() {
   const [opErr, setOpErr] = useState(null);
 
   useEffect(() => {
-    const p = searchParams.get('panel');
-    if (p && ['sheba', 'sell', 'contracts', 'p2p'].includes(p)) {
-      setActivePanel(p);
-    }
-  }, [searchParams]);
+    const panel = routePanel || queryPanel;
+    setActivePanel(WALLET_PANELS.includes(panel) ? panel : 'contracts');
+  }, [routePanel, queryPanel]);
 
-  const selectPanel = (p) => {
+  const selectPanel = (panel) => {
+    if (!WALLET_PANELS.includes(panel)) return;
     setOpErr(null);
     setMsg('');
-    setActivePanel(p);
-    setSearchParams(p === 'contracts' ? {} : { panel: p }, { replace: true });
+    navigate(`/wallet/${panel}`);
   };
 
   const loadWallet = useCallback(async () => {
@@ -83,6 +94,7 @@ export function LthWalletPage() {
   if (authLoading) return <LoadingState label="در حال بررسی نشست کاربری..." />;
 
   if (!user) {
+    const loginTarget = isDedicatedPanelPage ? `/wallet/${routePanel}` : (WALLET_PANELS.includes(queryPanel) ? `/wallet/${queryPanel}` : '/wallet');
     return (
       <div className="lth-shell">
         <LthTopBar />
@@ -90,7 +102,7 @@ export function LthWalletPage() {
           title="ورود به کیف پول ماین (LOTH COIN)"
           description="برای مشاهدهٔ موجودی LTH، قراردادهای هوشمند استیک (PoS)، برداشت شبا و انتقال حساب به حساب وارد حساب خود شوید. همچنین با لمس نوار بالای صفحه می‌توانید وارد موتور محاسبه‌گر ریال و پکیج‌ها شوید."
           actionLabel="ورود / ثبت‌نام در سامانه"
-          actionTo="/auth?next=/wallet"
+          actionTo={`/auth?next=${encodeURIComponent(loginTarget)}`}
         />
       </div>
     );
@@ -192,68 +204,77 @@ export function LthWalletPage() {
 
   return (
     <div className="lth-shell">
-      {/* 1. Separate Top LTH / IRR Ticker Bar ("نوار بالا باید جدا از کیف پول است و بعد از لمس آن به صفحه زیر منتقل میشویم") */}
+      {/* Dedicated routes keep the selected wallet action focused on its own page. */}
       <LthTopBar config={cfg} />
 
-      {/* 2. Pink LTH Wallet Card with all 7 Titles + Eye Visibility Toggle + 12-Decimal Formatting */}
-      <LthWalletCard
-        wallet={w}
-        config={cfg}
-        onSelectSheba={() => selectPanel('sheba')}
-      />
-
-      <div className="muted" style={{ fontSize: '0.8rem', textAlign: 'center', marginBottom: 12 }}>
-        ℹ️ {cfg.phase_notes?.tmn_and_toman_wallet_rows} • <Link to="/treasury"><strong>مشاهدهٔ وضعیت خزانهٔ پروتکل ←</strong></Link>
-      </div>
-
-      {/* 3. Action Buttons below Wallet (فروش / قرارداد هوشمند / حساب به حساب / خرید پکیج) */}
-      <button
-        type="button"
-        className="lth-outline-btn pink-text"
-        onClick={() => selectPanel('sell')}
-      >
-        فروش
-      </button>
-
-      <button
-        type="button"
-        className="lth-outline-btn"
-        onClick={() => selectPanel('contracts')}
-      >
-        قرارداد هوشمند
-      </button>
-
-      <div className="grid grid-2" style={{ marginBottom: 16 }}>
-        <button
-          type="button"
-          className={`btn ${activePanel === 'p2p' ? 'btn-primary' : 'btn-secondary'}`}
-          onClick={() => selectPanel('p2p')}
-        >
-          💳 حساب به حساب (PAY)
-        </button>
-        <Link to="/lth-calculator" className="btn btn-primary" style={{ background: '#ec1e79' }}>
-          ➕ خرید پکیج / محاسبه‌گر LTH
-        </Link>
-      </div>
-
-      {/* 4. Accounting Health & 24h Benchmark Banner ("نشان سلامت و همخوانی با حسابداری ما") */}
-      <section className="card" style={{ background: rec.healthy ? '#f0fdf4' : '#fef2f2', borderColor: rec.healthy ? '#86efac' : '#fca5a5' }}>
-        <div className="flex-between" style={{ marginBottom: 6 }}>
-          <strong style={{ color: rec.healthy ? '#166534' : '#991b1b' }}>
-            {rec.healthy ? '✓ نشان سلامت و همخوانی با دفتر حسابداری' : '⚠️ هشدار تطبیق دفتر حسابداری'}
-          </strong>
-          <span className={`badge ${rec.healthy ? 'badge-ok' : 'badge-danger'}`}>
-            {rec.status_label}
-          </span>
+      {isDedicatedPanelPage && (
+        <div className="flex-between" style={{ margin: '4px 0 14px', order: 4 }}>
+          <h1 style={{ margin: 0, fontSize: '1.2rem' }}>{WALLET_PANEL_TITLES[activePanel]}</h1>
+          <Link to="/wallet" className="muted">← بازگشت به کیف پول</Link>
         </div>
-        <div style={{ fontSize: '0.84rem', color: '#1e293b' }}>
-          پاداش هر <strong>1.00 LTH</strong> در ۲۴ ساعت (واریز خودکار از سمت سرور):{' '}
-          <strong className="mono">{rec.benchmark_1_lth_24h.reward_24h_lth} LTH</strong> معادل{' '}
-          <strong className="mono">{rec.benchmark_1_lth_24h.reward_24h_irr_formatted} ریال</strong>{' '}
-          (<span className="mono">{rec.benchmark_1_lth_24h.reward_24h_toman_formatted} تومان</span>) •{' '}
-          تراکنش‌های تطبیق‌شدهٔ دفتر شما: <strong>{rec.checked_ledger_entries.toLocaleString('fa-IR')} ردیف</strong>
-        </div>
-      </section>
+      )}
+
+      {!isDedicatedPanelPage && (
+        <>
+          <LthWalletCard
+            wallet={w}
+            config={cfg}
+            onSelectSheba={() => selectPanel('sheba')}
+          />
+
+          <div className="muted" style={{ fontSize: '0.8rem', textAlign: 'center', marginBottom: 12 }}>
+            ℹ️ {cfg.phase_notes?.tmn_and_toman_wallet_rows} • <Link to="/treasury"><strong>مشاهدهٔ وضعیت خزانهٔ پروتکل ←</strong></Link>
+          </div>
+
+          {/* Wallet actions each open a dedicated route. */}
+          <button
+            type="button"
+            className="lth-outline-btn pink-text"
+            onClick={() => selectPanel('sell')}
+          >
+            فروش
+          </button>
+
+          <button
+            type="button"
+            className="lth-outline-btn"
+            onClick={() => selectPanel('contracts')}
+          >
+            قرارداد هوشمند
+          </button>
+
+          <div className="grid grid-2" style={{ marginBottom: 16 }}>
+            <button
+              type="button"
+              className={`btn ${activePanel === 'p2p' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => selectPanel('p2p')}
+            >
+              💳 حساب به حساب (PAY)
+            </button>
+            <Link to="/lth-calculator" className="btn btn-primary" style={{ background: '#ec1e79' }}>
+              ➕ خرید پکیج / محاسبه‌گر LTH
+            </Link>
+          </div>
+
+          <section className="card" style={{ background: rec.healthy ? '#f0fdf4' : '#fef2f2', borderColor: rec.healthy ? '#86efac' : '#fca5a5' }}>
+            <div className="flex-between" style={{ marginBottom: 6 }}>
+              <strong style={{ color: rec.healthy ? '#166534' : '#991b1b' }}>
+                {rec.healthy ? '✓ نشان سلامت و همخوانی با دفتر حسابداری' : '⚠️ هشدار تطبیق دفتر حسابداری'}
+              </strong>
+              <span className={`badge ${rec.healthy ? 'badge-ok' : 'badge-danger'}`}>
+                {rec.status_label}
+              </span>
+            </div>
+            <div style={{ fontSize: '0.84rem', color: '#1e293b' }}>
+              پاداش هر <strong>1.00 LTH</strong> در ۲۴ ساعت (واریز خودکار از سمت سرور):{' '}
+              <strong className="mono">{rec.benchmark_1_lth_24h.reward_24h_lth} LTH</strong> معادل{' '}
+              <strong className="mono">{rec.benchmark_1_lth_24h.reward_24h_irr_formatted} ریال</strong>{' '}
+              (<span className="mono">{rec.benchmark_1_lth_24h.reward_24h_toman_formatted} تومان</span>) •{' '}
+              تراکنش‌های تطبیق‌شدهٔ دفتر شما: <strong>{rec.checked_ledger_entries.toLocaleString('fa-IR')} ردیف</strong>
+            </div>
+          </section>
+        </>
+      )}
 
       {msg && <div className="alert-inline ok">✓ {msg}</div>}
       {opErr && (
@@ -263,11 +284,10 @@ export function LthWalletPage() {
         </>
       )}
 
-      {/* ==================== ACTIVE WORKSPACE PANEL ==================== */}
+      {/* The selected action is the only work panel shown on a dedicated route. */}
 
-      {/* PANEL A: برداشت شبا */}
       {activePanel === 'sheba' && (
-        <section className="card">
+        <section className="card" style={isDedicatedPanelPage ? { order: 5 } : undefined}>
           <div className="flex-between" style={{ marginBottom: 10 }}>
             <h2 style={{ margin: 0, fontSize: '1.08rem' }}>🏦 ثبت درخواست برداشت شبا (به ریال)</h2>
             <span className="badge badge-info">سقف قابل برداشت: {w.withdrawable_irr_formatted} ریال</span>
@@ -322,9 +342,8 @@ export function LthWalletPage() {
         </section>
       )}
 
-      {/* PANEL B: فروش LTH */}
       {activePanel === 'sell' && (
-        <section className="card">
+        <section className="card" style={isDedicatedPanelPage ? { order: 5 } : undefined}>
           <div className="flex-between" style={{ marginBottom: 10 }}>
             <h2 style={{ margin: 0, fontSize: '1.08rem', color: '#be185d' }}>💱 فروش موجودی قابل برداشت LTH به نرخ سرور</h2>
             <span className="badge badge-info">قابل فروش: LTH {w.total_withdrawable_lth_display_8}</span>
@@ -379,9 +398,8 @@ export function LthWalletPage() {
         </section>
       )}
 
-      {/* PANEL C: حساب به حساب (PAY) */}
       {activePanel === 'p2p' && (
-        <section className="card">
+        <section className="card" style={isDedicatedPanelPage ? { order: 5 } : undefined}>
           <div className="flex-between" style={{ marginBottom: 10 }}>
             <h2 style={{ margin: 0, fontSize: '1.08rem' }}>💳 انتقال حساب به حساب (PAY)</h2>
             <span className="badge badge-info">قابل انتقال: LTH {w.total_withdrawable_lth_display_8}</span>
@@ -462,9 +480,8 @@ export function LthWalletPage() {
         </section>
       )}
 
-      {/* PANEL D: قرارداد هوشمند PoS و دفتر تراکنش‌ها */}
       {activePanel === 'contracts' && (
-        <section className="card">
+        <section className="card" style={isDedicatedPanelPage ? { order: 5 } : undefined}>
           <div className="flex-between" style={{ marginBottom: 10 }}>
             <h2 style={{ margin: 0, fontSize: '1.08rem' }}>📜 قراردادهای هوشمند استیک (Proof of Stake) و واریز ۲۴ ساعته</h2>
             <button type="button" className="btn btn-secondary btn-sm" onClick={loadWallet}>🔄 بروزرسانی از سرور</button>
@@ -540,7 +557,7 @@ export function LthWalletPage() {
       )}
 
       {/* Withdrawals & Sales History */}
-      {withdrawals.length > 0 && (
+      {withdrawals.length > 0 && (!isDedicatedPanelPage || ['sell', 'sheba'].includes(activePanel)) && (
         <section className="card">
           <h3 style={{ marginTop: 0, fontSize: '1rem' }}>سابقهٔ درخواست‌های برداشت شبا و فروش LTH</h3>
           <div className="table-wrap">
