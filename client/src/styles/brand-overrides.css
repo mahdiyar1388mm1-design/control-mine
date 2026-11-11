@@ -28,6 +28,28 @@
   background: #fff5fa;
 }
 
+/* When selling, keep the existing form on the wallet page directly below the Sell button. */
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) {
+  display: flex;
+  flex-direction: column;
+}
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > * {
+  order: 20;
+}
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > .lth-top-ticker-bar { order: 1; }
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > .lth-wallet-card { order: 2; }
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > .muted { order: 3; }
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > button.lth-outline-btn.pink-text { order: 4; }
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > section.card:has(input[placeholder="مثلاً 0.001"]) {
+  order: 5;
+  margin-top: 0;
+}
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > button.lth-outline-btn:not(.pink-text) { order: 6; }
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > .grid.grid-2 { order: 7; }
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > section.card:not(:has(form)):not(:has(h3)) { order: 8; }
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > .alert-inline { order: 9; }
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > section.card:has(h3) { order: 12; }
+
 /* Logos across the site: transparent brand image, no sticker frame, border, outline, shadow or white background */
 .cm-pink-header .cm-brand-mark,
 .cm-brand-mark,
