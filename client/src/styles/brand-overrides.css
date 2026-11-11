@@ -1,0 +1,8 @@
+/* Header brand logo: plain pink brand mark, no sticker frame or outline line */
+.cm-pink-header .cm-brand-mark {
+  border: none;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+  border-radius: 8px;
+}

@@ -4,6 +4,7 @@ import '@fontsource/vazirmatn/400.css';
 import '@fontsource/vazirmatn/500.css';
 import '@fontsource/vazirmatn/700.css';
 import './styles/global.css';
+import './styles/brand-overrides.css';
 import App from './App';
 
 // Keep the native install prompt available even if it fires before the auth page opens.
