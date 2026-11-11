@@ -228,7 +228,6 @@ export function SupportTicketsPanel() {
                   <div className="flex-gap">
                     <select className="select" style={{ flex: 1 }} value={referTeam} onChange={(e) => setReferTeam(e.target.value)}>
                       <option value="support">پشتیبانی عمومی</option>
-                      <option value="services">واحد عملیات خدمات</option>
                       <option value="warehouse">واحد انبار و ارسال</option>
                       <option value="finance">واحد مالی</option>
                     </select>
@@ -582,10 +581,9 @@ export function WarehousePanel() {
 export function FinanceReportsPanel({ userRole }) {
   const canPayments = ['finance', 'admin'].includes(userRole);
   const canSalesReport = ['finance', 'admin'].includes(userRole);
-  const canServicesReport = ['finance', 'operator', 'admin'].includes(userRole);
   const canTicketsReport = ['support', 'admin'].includes(userRole);
 
-  const defaultTab = canPayments ? 'payments' : (canServicesReport ? 'rep-services' : 'rep-tickets');
+  const defaultTab = canPayments ? 'payments' : 'rep-tickets';
   const [tab, setTab] = useState(defaultTab);
   const [statusFilter, setStatusFilter] = useState('');
   const [payments, setPayments] = useState({ items: [], total: 0 });
@@ -625,8 +623,6 @@ export function FinanceReportsPanel({ userRole }) {
         setLthReconciliation(rRes.reconciliation);
       } else if (tab === 'rep-sales') {
         setReport(await apiFetch('/admin/reports/sales'));
-      } else if (tab === 'rep-services') {
-        setReport(await apiFetch('/admin/reports/services'));
       } else if (tab === 'rep-payments') {
         setReport(await apiFetch('/admin/reports/payments'));
       } else if (tab === 'rep-tickets') {
@@ -715,11 +711,6 @@ export function FinanceReportsPanel({ userRole }) {
         {canSalesReport && (
           <button type="button" className={`tab-btn ${tab === 'rep-sales' ? 'active' : ''}`} onClick={() => setTab('rep-sales')}>
             📊 گزارش فروش کالا و سود تاریخی
-          </button>
-        )}
-        {canServicesReport && (
-          <button type="button" className={`tab-btn ${tab === 'rep-services' ? 'active' : ''}`} onClick={() => setTab('rep-services')}>
-            📊 گزارش عملیات خدمات
           </button>
         )}
         {canPayments && (
@@ -968,25 +959,6 @@ export function FinanceReportsPanel({ userRole }) {
             </>
           )}
 
-          {tab === 'rep-services' && report.kpis && (
-            <div className="grid grid-3" style={{ marginBottom: 16 }}>
-              <div className="kpi-card">
-                <div className="kpi-label">پرونده‌های تکمیل‌شده</div>
-                <div className="kpi-value">{formatNumber(report.kpis.completed_count)} پرونده</div>
-              </div>
-              <div className="kpi-card">
-                <div className="kpi-label">ارزش خدمات تکمیل‌شده</div>
-                <div className="kpi-value">{formatMoney(report.kpis.completed_value_toman)}</div>
-              </div>
-              <div className="kpi-card">
-                <div className="kpi-label">پرونده‌های باز دارای نقض SLA</div>
-                <div className="kpi-value" style={{ color: report.kpis.open_sla_breached_count > 0 ? 'var(--danger)' : 'var(--ok)' }}>
-                  {formatNumber(report.kpis.open_sla_breached_count)} پرونده
-                </div>
-              </div>
-            </div>
-          )}
-
           {tab === 'rep-payments' && (
             <div className="card table-wrap">
               <h4 style={{ marginTop: 0 }}>تفکیک تراکنش‌ها بر اساس وضعیت</h4>
@@ -996,7 +968,6 @@ export function FinanceReportsPanel({ userRole }) {
                     <th>وضعیت</th>
                     <th>تعداد</th>
                     <th>مربوط به سفارش کالا</th>
-                    <th>مربوط به خدمات</th>
                     <th>مجموع مبلغ</th>
                   </tr>
                 </thead>
@@ -1006,7 +977,6 @@ export function FinanceReportsPanel({ userRole }) {
                       <td><StatusBadge status={row.status} /></td>
                       <td>{formatNumber(row.count)}</td>
                       <td>{formatNumber(row.for_orders)}</td>
-                      <td>{formatNumber(row.for_services)}</td>
                       <td><strong>{formatMoney(row.total_toman)}</strong></td>
                     </tr>
                   ))}

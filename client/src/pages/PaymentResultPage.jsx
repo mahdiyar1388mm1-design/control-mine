@@ -87,9 +87,6 @@ export function PaymentResultPage() {
           {payment.order_id && (
             <Link to="/orders" className="btn btn-primary">مشاهدهٔ سفارش‌ها و رسید سرور</Link>
           )}
-          {payment.service_request_id && (
-            <Link to="/service-requests" className="btn btn-primary">مشاهدهٔ پرونده‌های خدمات</Link>
-          )}
           {payment.lth_purchase_code && (
             <Link to="/wallet" className="btn btn-primary" style={{ background: '#ec1e79' }}>
               مشاهدهٔ کیف پول و قرارداد هوشمند LTH

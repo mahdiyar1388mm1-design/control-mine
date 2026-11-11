@@ -113,14 +113,13 @@ export function HomePage() {
           />
           <div>
             <h1 style={{ margin: '0 0 8px', fontSize: '1.45rem', fontWeight: 900, color: '#0f172a' }}>
-              CENTRAL MINE — اکوسیستم یکپارچهٔ ماین، فروشگاه تجهیزات صنعتی و خدمات فنی آنلاین
+              CENTRAL MINE — فروشگاه تجهیزات صنعتی و سامانهٔ کیف پول LTH
             </h1>
             <p style={{ margin: '0 0 14px', color: '#475569', lineHeight: 1.75 }}>
-              ترکیب کیف پول و خزانهٔ شفاف <strong>LOTH COIN (LTH)</strong> با قرارداد هوشمند اثبات سهام (PoS)، در کنار تأمین مستقیم تجهیزات صنعتی و خدمات کالیبراسیون و تعمیرات با کد رهگیری و SLA مشخص.
+              محصولات و تجهیزات را در فروشگاه ببینید و کیف پول و خزانهٔ شفاف <strong>LOTH COIN (LTH)</strong> را با قرارداد هوشمند اثبات سهام (PoS) مدیریت کنید.
             </p>
             <div className="flex-gap">
               <Link to="/#products" className="btn btn-primary" style={{ background: '#ec1e79' }}>🛍️ دیدن محصولات</Link>
-              <Link to="/services" className="btn btn-secondary">⚙️ ثبت درخواست خدمت فنی</Link>
               <Link to="/treasury" className="btn btn-secondary">🏛️ بررسی خزانهٔ پروتکل</Link>
             </div>
           </div>

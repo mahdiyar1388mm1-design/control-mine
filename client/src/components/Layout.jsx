@@ -46,7 +46,7 @@ export function Layout({ children }) {
               type="search"
               value={headerSearch}
               onChange={(e) => setHeaderSearch(e.target.value)}
-              placeholder="جست‌وجو در ماین (کالا، خدمات...)"
+              placeholder="جست‌وجو در محصولات..."
               aria-label="جست‌وجو در ماین"
               className="cm-header-search-input"
             />
@@ -59,7 +59,6 @@ export function Layout({ children }) {
             <NavLink to="/treasury" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>🏛️ خزانه</NavLink>
             <NavLink to="/lth-calculator" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>🧮 محاسبه‌گر</NavLink>
             <NavLink to="/shop" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>فروشگاه</NavLink>
-            <NavLink to="/services" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>خدمات</NavLink>
             {user && (
               <>
                 <NavLink to="/orders" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>سفارش‌ها</NavLink>
@@ -122,7 +121,7 @@ export function Layout({ children }) {
               style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover' }}
             />
             <span>
-              <strong>CENTRAL MINE</strong> — سامانهٔ یکپارچهٔ کیف پول و خزانهٔ LTH، فروشگاه تجهیزات و خدمات عملیاتی آنلاین
+              <strong>CENTRAL MINE</strong> — فروشگاه تجهیزات و سامانهٔ کیف پول و خزانهٔ LTH
             </span>
           </div>
           <div className="flex-gap">
@@ -132,18 +131,12 @@ export function Layout({ children }) {
             <span>•</span>
             <Link to="/shop">فروشگاه</Link>
             <span>•</span>
-            <Link to="/services">خدمات</Link>
-            <span>•</span>
             <Link to="/tickets">پشتیبانی</Link>
           </div>
         </div>
       </footer>
 
-      <nav className="mobile-bottom-nav" aria-label="ناوبری موبایل" style={{ background: '#ec1e79', borderTop: 'none' }}>
-        <NavLink to="/services" className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`} style={{ color: '#fff' }}>
-          <span>⚙️</span>
-          <span>خدمات</span>
-        </NavLink>
+      <nav className="mobile-bottom-nav" aria-label="ناوبری موبایل" style={{ background: '#ec1e79', borderTop: 'none', gridTemplateColumns: 'repeat(4, 1fr)' }}>
         <NavLink to="/treasury" className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`} style={{ color: '#fff' }}>
           <span>🏛️</span>
           <span>خزانه</span>

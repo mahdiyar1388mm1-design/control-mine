@@ -65,7 +65,7 @@ export function formatBytes(bytes) {
 
 export const ROLE_LABELS = {
   customer: 'مشتری',
-  operator: 'اپراتور خدمات',
+  operator: 'اپراتور',
   support: 'کارشناس پشتیبانی',
   warehouse: 'مسئول انبار و ارسال',
   finance: 'مسئول مالی',
@@ -84,11 +84,11 @@ export const TICKET_CATEGORY_LABELS = {
   general: 'عمومی',
   orders: 'پیگیری سفارش کالا',
   payments: 'پرداخت و امور مالی',
-  services: 'پرسش دربارهٔ خدمات',
+  services: 'سایر موارد',
   account: 'حساب کاربری',
   other: 'سایر موارد'
 };
 
 export function isStaffRole(role) {
-  return ['operator', 'support', 'warehouse', 'finance', 'admin'].includes(role);
+  return ['support', 'warehouse', 'finance', 'admin'].includes(role);
 }

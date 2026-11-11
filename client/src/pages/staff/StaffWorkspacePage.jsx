@@ -3,7 +3,6 @@ import { apiFetch } from '../../lib/api';
 import { formatNumber, isStaffRole, ROLE_LABELS } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
 import { EmptyState, ErrorState, LoadingState } from '../../components/StateViews';
-import { OperatorServicesPanel } from './OperatorPanel';
 import { FinanceReportsPanel, SupportTicketsPanel, WarehousePanel } from './SupportWarehouseFinancePanels';
 import { AdminManagementPanel } from './AdminManagementPanel';
 import { AdminLthPanel } from './AdminLthPanel';
@@ -15,16 +14,13 @@ export function StaffWorkspacePage() {
 
   const allowedSections = [];
   if (user) {
-    if (['operator', 'admin'].includes(user.role)) {
-      allowedSections.push({ id: 'operator', label: '⚙️ صف عملیات خدمات' });
-    }
     if (['support', 'admin'].includes(user.role)) {
       allowedSections.push({ id: 'support', label: '💬 میزکار پشتیبانی' });
     }
     if (['warehouse', 'admin'].includes(user.role)) {
       allowedSections.push({ id: 'warehouse', label: '📦 انبار، موجودی و ارسال' });
     }
-    if (['finance', 'operator', 'support', 'admin'].includes(user.role)) {
+    if (['finance', 'support', 'admin'].includes(user.role)) {
       allowedSections.push({ id: 'finance-reports', label: user.role === 'finance' ? '💳 امور مالی و گزارش‌ها' : '📊 گزارش‌های مجاز' });
     }
     if (['admin', 'finance'].includes(user.role)) {
@@ -94,20 +90,6 @@ export function StaffWorkspacePage() {
       {/* Action-First Operational Queue Counters (§17) */}
       {overview && (
         <div className="grid grid-4" style={{ marginBottom: 20 }}>
-          {q.services && (
-            <>
-              <div className="kpi-card">
-                <div className="kpi-label">پرونده‌های در صف بدون کارشناس</div>
-                <div className="kpi-value">{formatNumber(q.services.queued_unassigned)}</div>
-              </div>
-              <div className="kpi-card">
-                <div className="kpi-label">نقض SLA / نزدیک سررسید ۲۴ساعته</div>
-                <div className="kpi-value" style={{ color: q.services.sla_breached > 0 ? 'var(--danger)' : 'var(--accent)' }}>
-                  {formatNumber(q.services.sla_breached)} نقض | {formatNumber(q.services.sla_at_risk_24h)} هشدار
-                </div>
-              </div>
-            </>
-          )}
           {q.warehouse && (
             <>
               <div className="kpi-card">
@@ -158,7 +140,6 @@ export function StaffWorkspacePage() {
         ))}
       </div>
 
-      {activeSection === 'operator' && <OperatorServicesPanel />}
       {activeSection === 'support' && <SupportTicketsPanel />}
       {activeSection === 'warehouse' && <WarehousePanel />}
       {activeSection === 'finance-reports' && <FinanceReportsPanel userRole={user.role} />}

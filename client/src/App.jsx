@@ -7,12 +7,6 @@ import { ProductDetailPage, ShopPage } from './pages/ShopPage';
 import { CartCheckoutPage } from './pages/CartCheckoutPage';
 import { PaymentResultPage } from './pages/PaymentResultPage';
 import { OrderDetailPage, OrdersListPage } from './pages/OrdersPage';
-import {
-  CustomerServiceRequestDetailPage,
-  MyServiceRequestsPage,
-  ServiceDetailApplyPage,
-  ServicesListPage
-} from './pages/ServicesPage';
 import { TicketDetailPage, TicketsListPage } from './pages/SupportPage';
 import { AuthPage, NotificationsPage, ProfileAddressesPage } from './pages/AccountPage';
 import { LthWalletPage } from './pages/LthWalletPage';
@@ -77,10 +71,6 @@ export default function App() {
               <Route path="/pay/result" element={<PaymentResultPage />} />
               <Route path="/orders" element={<OrdersListPage />} />
               <Route path="/orders/:code" element={<OrderDetailPage />} />
-              <Route path="/services" element={<ServicesListPage />} />
-              <Route path="/services/:slug" element={<ServiceDetailApplyPage />} />
-              <Route path="/service-requests" element={<MyServiceRequestsPage />} />
-              <Route path="/service-requests/:code" element={<CustomerServiceRequestDetailPage />} />
               <Route path="/tickets" element={<TicketsListPage />} />
               <Route path="/tickets/:code" element={<TicketDetailPage />} />
               <Route path="/auth" element={<AuthPage />} />

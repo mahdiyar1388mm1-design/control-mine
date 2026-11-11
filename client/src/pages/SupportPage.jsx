@@ -69,7 +69,7 @@ export function TicketsListPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">پشتیبانی و پیگیری سؤالات</h1>
-          <p className="page-subtitle">تیکت پشتیبانی مخصوص پرسش‌ها و مشکلات است و از «درخواست‌های خدمات تجاری» مستقل مدیریت می‌شود.</p>
+          <p className="page-subtitle">برای پیگیری سفارش‌ها، پرداخت و پرسش‌های حساب کاربری تیکت ثبت کنید.</p>
         </div>
         <button type="button" className="btn btn-primary" onClick={() => setShowNew((v) => !v)}>
           {showNew ? 'بستن فرم تیکت' : '+ ثبت تیکت جدید'}
@@ -93,7 +93,7 @@ export function TicketsListPage() {
             <div className="form-row">
               <label className="form-label">دسته‌بندی</label>
               <select className="select" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
-                {Object.entries(TICKET_CATEGORY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                {Object.entries(TICKET_CATEGORY_LABELS).filter(([key]) => key !== 'services').map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </div>
             <div className="form-row">
