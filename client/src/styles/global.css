@@ -965,3 +965,174 @@ a:hover {
 .lth-pkg-shade-3 { background: #f98dc0; color: #ffffff; }
 .lth-pkg-shade-4 { background: #fbc4df; color: #831843; }
 
+/* Pink "ماین" Header & Official CENTRAL MINE Brand Logo */
+.cm-pink-header {
+  background: linear-gradient(135deg, #ff2a8d 0%, #ec1e79 65%, #d6186c 100%) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 18px rgba(236, 30, 121, 0.22);
+}
+.cm-brand-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
+  background: #ffffff;
+  flex-shrink: 0;
+}
+.cm-brand-fa {
+  font-size: 1.35rem;
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: -0.4px;
+}
+.cm-brand-en {
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: 0.7px;
+  direction: ltr;
+}
+.cm-header-search {
+  display: none;
+  align-items: center;
+  background: #ffffff;
+  border-radius: 999px;
+  padding: 3px 6px 3px 12px;
+  min-width: 210px;
+  max-width: 290px;
+  flex: 1;
+}
+@media (min-width: 820px) {
+  .cm-header-search {
+    display: flex;
+  }
+}
+.cm-header-search-input {
+  border: none;
+  background: transparent;
+  width: 100%;
+  font-family: inherit;
+  font-size: 0.82rem;
+  color: #0f172a;
+  padding: 5px 8px;
+}
+.cm-header-search-input:focus {
+  outline: none;
+}
+.cm-header-search-btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 2px 4px;
+}
+
+.cm-home-brand-card {
+  background: linear-gradient(135deg, #ffffff 0%, #fff5fa 100%);
+  border: 1.5px solid #fbcfe8;
+}
+.cm-home-brand-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  align-items: center;
+}
+@media (min-width: 720px) {
+  .cm-home-brand-grid {
+    grid-template-columns: 150px 1fr;
+  }
+}
+.cm-home-brand-img {
+  width: 140px;
+  height: 140px;
+  border-radius: 22px;
+  object-fit: cover;
+  border: 2px solid #fbcfe8;
+  box-shadow: 0 10px 26px rgba(236, 30, 121, 0.16);
+  margin: 0 auto;
+}
+
+/* Eye Mask Button on Wallet & Treasury Cards */
+.lth-eye-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  cursor: pointer;
+  padding: 0;
+  font-size: 1rem;
+  transition: background 0.15s;
+}
+.lth-eye-btn:hover {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+/* Protocol Treasury ("خزانه") Card */
+.lth-treasury-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+  padding: 22px 22px 18px;
+  margin-bottom: 18px;
+  color: #ffffff;
+  background: linear-gradient(145deg, #ff2f92 0%, #ec1e79 55%, #cf1567 100%);
+  box-shadow: 0 16px 36px rgba(236, 30, 121, 0.28);
+}
+.lth-treasury-header {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.lth-treasury-title {
+  font-size: 1.45rem;
+  font-weight: 900;
+  letter-spacing: -0.3px;
+}
+.lth-treasury-coin-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 999px;
+  padding: 4px 12px 4px 6px;
+  font-weight: 900;
+  font-size: 1rem;
+}
+.lth-treasury-hero-row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0 12px;
+}
+.lth-treasury-hero-label {
+  font-size: 1.15rem;
+  font-weight: 900;
+}
+.lth-treasury-hero-value {
+  font-size: 1.55rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.4px;
+}
+.lth-treasury-divider {
+  position: relative;
+  z-index: 1;
+  height: 1.5px;
+  background: rgba(255, 255, 255, 0.42);
+  margin-bottom: 8px;
+}
+
+

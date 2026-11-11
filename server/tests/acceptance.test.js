@@ -901,3 +901,80 @@ test('LTH (LOTH COIN) end-to-end: calculator, packages, 7 wallet titles, 24h mul
   assert.equal(globalRec.data.reconciliation.reward_split_conservation_ok, true);
 });
 
+test('scenario #22: LTH Protocol Treasury ("خزانه" 15,000,000 LTH), Base/Stake Return Accounting, and Backend Protocol Search & 360° Inspector', async () => {
+  const cust2 = await loginAs('09120000011');
+  const op = await loginAs('09120000002');
+  const fin = await loginAs('09120000005');
+  const admin = await loginAs('09120000001');
+
+  // 1) Public Treasury endpoint returns exact 5 approved rows & conservation proof
+  const t1 = await api('/api/v1/lth/treasury');
+  assert.equal(t1.status, 200);
+  const tr = t1.data.treasury;
+  assert.equal(tr.title, 'خزانه');
+  assert.equal(tr.total_supply_lth_headline, '15.000.000');
+  assert.equal(tr.conservation_ok, true);
+  assert.equal(BigInt(tr.asset_atoms) + BigInt(tr.market_atoms), BigInt(tr.total_supply_atoms));
+  // Ensure struck-out rows ("جمع پرداخت" / "پاداش ماین") are NOT exposed as treasury fields
+  assert.equal(tr.total_paid_atoms, undefined);
+  assert.equal(tr.mine_reward_atoms, undefined);
+
+  // 2) Liquidate remaining balance (including post-3285d unlocked stake + base) and verify جمع بازگشت استیک & جمع بازگشت پایه
+  const sellAll = await api('/api/v1/lth/withdrawals', {
+    method: 'POST',
+    token: cust2.token,
+    body: {
+      kind: 'sell_lth',
+      sheba_iban: 'IR062960000000100324200001',
+      account_holder_name: 'الهام شریفی',
+      withdraw_all: true
+    }
+  });
+  assert.equal(sellAll.status, 201);
+  const sellCode = sellAll.data.withdrawal.code;
+
+  const paySell = await api(`/api/v1/staff/lth/withdrawals/${sellCode}/review`, {
+    method: 'POST',
+    token: fin.token,
+    body: { action: 'approve_paid', bank_ref: 'SATNA-55443322', review_note: 'تسویه کامل فروش' }
+  });
+  assert.equal(paySell.status, 200);
+
+  const t2 = await api('/api/v1/lth/treasury');
+  assert.equal(t2.data.treasury.conservation_ok, true);
+  assert.ok(BigInt(t2.data.treasury.returned_base_atoms) > 0n, 'جمع بازگشت پایه must increase after base liquidation');
+  assert.ok(BigInt(t2.data.treasury.returned_stake_atoms) > 0n, 'جمع بازگشت استیک must increase after unlocked stake liquidation');
+
+  // 3) Backend Protocol Search & 360° User Inspector RBAC + Query Filtering
+  assert.equal((await api('/api/v1/admin/lth/protocol-search', { token: cust2.token })).status, 403);
+  assert.equal((await api('/api/v1/admin/lth/protocol-search', { token: op.token })).status, 403);
+
+  const finSearch = await api('/api/v1/admin/lth/protocol-search?q=POS-SEED5101&projection_days=365', { token: fin.token });
+  assert.equal(finSearch.status, 200);
+  assert.equal(finSearch.data.metrics_control.projection.days, 365);
+  assert.equal(finSearch.data.results.contracts.length, 1);
+  assert.equal(finSearch.data.results.contracts[0].contract_code, 'POS-SEED5101');
+
+  const seedUserId = finSearch.data.results.contracts[0].user_id;
+  const inspectRes = await api(`/api/v1/admin/lth/users/${seedUserId}/inspect`, { token: fin.token });
+  assert.equal(inspectRes.status, 200);
+  assert.equal(inspectRes.data.reconciliation.healthy, true);
+  assert.ok(inspectRes.data.wallet.base_lth_display_12.length >= 10);
+
+  // 4) Treasury settings RBAC: finance forbidden, admin allowed with audit reason
+  assert.equal((await api('/api/v1/admin/lth/treasury', {
+    method: 'PATCH',
+    token: fin.token,
+    body: { transfer_fee_percent: 1, reason: 'تلاش مالی' }
+  })).status, 403);
+
+  const adminTrPatch = await api('/api/v1/admin/lth/treasury', {
+    method: 'PATCH',
+    token: admin.token,
+    body: { total_supply_lth: '15000000', transfer_fee_percent: 0, sell_fee_percent: 0, reason: 'تثبیت سقف ۱۵ میلیون واحد خزانه' }
+  });
+  assert.equal(adminTrPatch.status, 200);
+  assert.equal(adminTrPatch.data.treasury.conservation_ok, true);
+});
+
+

@@ -1,12 +1,20 @@
-import React from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { isStaffRole, ROLE_LABELS } from '../lib/format';
 import { OfflineBanner } from './StateViews';
 
 export function Layout({ children }) {
   const { user, cartCount, unreadCount, logout } = useAuth();
+  const navigate = useNavigate();
+  const [headerSearch, setHeaderSearch] = useState('');
   const staff = user && isStaffRole(user.role);
+
+  const handleHeaderSearch = (e) => {
+    e.preventDefault();
+    const q = headerSearch.trim();
+    navigate(q ? `/shop?q=${encodeURIComponent(q)}` : '/shop');
+  };
 
   return (
     <div>
@@ -15,29 +23,48 @@ export function Layout({ children }) {
         محیط عملیاتی نسخهٔ اول — پرداخت و پیامک روی آداپتور آزمایشی (Sandbox) فعال هستند و تراکنش بانکی واقعی انجام نمی‌شود.
       </div>
 
-      <header className="top-header">
+      <header className="top-header cm-pink-header">
         <div className="container top-header-inner">
-          <Link to="/" className="brand-logo">
-            <span>CENTRAL MINE</span>
-            <span className="brand-tag">فروشگاه و خدمات فنی</span>
+          <Link to="/" className="brand-logo" aria-label="CENTRAL MINE — صفحهٔ اصلی">
+            <img
+              src="/central-mine-logo.jpg"
+              alt="لوگوی رسمی CENTRAL MINE"
+              className="cm-brand-mark"
+            />
+            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
+              <span className="cm-brand-fa">ماین</span>
+              <span className="cm-brand-en">CENTRAL MINE</span>
+            </div>
           </Link>
 
+          <form onSubmit={handleHeaderSearch} className="cm-header-search" role="search">
+            <input
+              type="search"
+              value={headerSearch}
+              onChange={(e) => setHeaderSearch(e.target.value)}
+              placeholder="جست‌وجو در ماین (کالا، خدمات...)"
+              aria-label="جست‌وجو در ماین"
+              className="cm-header-search-input"
+            />
+            <button type="submit" className="cm-header-search-btn" aria-label="جست‌وجو">🔍</button>
+          </form>
+
           <nav className="desktop-nav" aria-label="ناوبری اصلی">
-            <NavLink to="/" end className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>صفحهٔ اصلی</NavLink>
-            <NavLink to="/wallet" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>🪙 کیف پول ماین</NavLink>
-            <NavLink to="/lth-calculator" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>🧮 محاسبه‌گر LTH</NavLink>
-            <NavLink to="/shop" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>فروشگاه کالا</NavLink>
-            <NavLink to="/services" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>خدمات عملیاتی</NavLink>
+            <NavLink to="/" end className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>خانه</NavLink>
+            <NavLink to="/wallet" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>🪙 کیف پول</NavLink>
+            <NavLink to="/treasury" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>🏛️ خزانه</NavLink>
+            <NavLink to="/lth-calculator" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>🧮 محاسبه‌گر</NavLink>
+            <NavLink to="/shop" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>فروشگاه</NavLink>
+            <NavLink to="/services" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>خدمات</NavLink>
             {user && (
               <>
                 <NavLink to="/orders" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>سفارش‌ها</NavLink>
-                <NavLink to="/service-requests" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>پرونده‌های خدمات</NavLink>
                 <NavLink to="/tickets" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>پشتیبانی</NavLink>
               </>
             )}
             {staff && (
               <NavLink to="/staff" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-                🛠️ پنل عملیات ({ROLE_LABELS[user.role]})
+                🛠️ پنل ({ROLE_LABELS[user.role]})
               </NavLink>
             )}
           </nav>
@@ -46,11 +73,11 @@ export function Layout({ children }) {
             {user ? (
               <>
                 <Link to="/cart" className="nav-link" aria-label="سبد خرید">
-                  🛒 سبد
+                  🛒
                   {cartCount > 0 && <span className="pill-count">{cartCount.toLocaleString('fa-IR')}</span>}
                 </Link>
                 <Link to="/notifications" className="nav-link" aria-label="اعلان‌ها">
-                  🔔 اعلان
+                  🔔
                   {unreadCount > 0 && <span className="pill-count">{unreadCount.toLocaleString('fa-IR')}</span>}
                 </Link>
                 <Link to="/account" className="nav-link">
@@ -60,13 +87,17 @@ export function Layout({ children }) {
                   type="button"
                   className="btn btn-secondary btn-sm"
                   onClick={logout}
-                  style={{ background: 'rgba(255,255,255,0.12)', color: '#fff', borderColor: 'transparent' }}
+                  style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', borderColor: 'rgba(255,255,255,0.4)' }}
                 >
                   خروج
                 </button>
               </>
             ) : (
-              <Link to="/auth" className="btn btn-primary btn-sm">
+              <Link
+                to="/auth"
+                className="btn btn-sm"
+                style={{ background: '#ffffff', color: '#d6186c', fontWeight: 800 }}
+              >
                 ورود / ثبت‌نام
               </Link>
             )}
@@ -78,12 +109,23 @@ export function Layout({ children }) {
         {children}
       </main>
 
-      <footer className="container muted no-print" style={{ padding: '20px 16px 36px', fontSize: '0.83rem', borderTop: '1px solid var(--border)' }}>
-        <div className="flex-between">
-          <div>
-            <strong>CENTRAL MINE</strong> — سامانهٔ فارسی فروش تجهیزات و پیگیری خدمات آنلاین (تمام مبالغ به <strong>تومان</strong> است)
+      <footer className="container muted no-print" style={{ padding: '20px 16px 40px', fontSize: '0.83rem', borderTop: '1px solid var(--border)' }}>
+        <div className="flex-between" style={{ flexWrap: 'wrap', gap: 12 }}>
+          <div className="flex-gap" style={{ alignItems: 'center' }}>
+            <img
+              src="/central-mine-logo.jpg"
+              alt="CENTRAL MINE"
+              style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover' }}
+            />
+            <span>
+              <strong>CENTRAL MINE</strong> — سامانهٔ یکپارچهٔ کیف پول و خزانهٔ LTH، فروشگاه تجهیزات و خدمات عملیاتی آنلاین
+            </span>
           </div>
           <div className="flex-gap">
+            <Link to="/treasury">خزانه پروتکل</Link>
+            <span>•</span>
+            <Link to="/wallet">کیف پول LTH</Link>
+            <span>•</span>
             <Link to="/shop">فروشگاه</Link>
             <span>•</span>
             <Link to="/services">خدمات</Link>
@@ -98,9 +140,9 @@ export function Layout({ children }) {
           <span>⚙️</span>
           <span>خدمات</span>
         </NavLink>
-        <NavLink to="/wallet?panel=p2p" className="mobile-nav-item" style={{ color: '#fff' }}>
-          <span>💳</span>
-          <span>حساب به حساب</span>
+        <NavLink to="/treasury" className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`} style={{ color: '#fff' }}>
+          <span>🏛️</span>
+          <span>خزانه</span>
         </NavLink>
         <NavLink to="/shop" className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`} style={{ color: '#fff' }}>
           <span>🛍️</span>

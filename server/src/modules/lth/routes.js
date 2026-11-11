@@ -22,6 +22,12 @@ router.get('/lth/config', (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+router.get('/lth/treasury', (req, res, next) => {
+  try {
+    res.json({ treasury: lth.getTreasuryView() });
+  } catch (err) { next(err); }
+});
+
 router.post('/lth/calculate', rateLimit({ name: 'lth-calc', windowSec: 60, max: 120 }), (req, res, next) => {
   try {
     res.json(lth.calculateEndpoint(req.body || {}));
@@ -95,16 +101,35 @@ router.get('/admin/lth/reconciliation', requireRole('admin', 'finance'), (req, r
   try {
     res.json({
       reconciliation: lth.reconcileLedger(),
+      treasury: lth.getTreasuryView(),
       scheduler: lth.getClusterSchedulerStatus()
     });
   } catch (err) { next(err); }
 });
 
-// ---------- Admin Only: LTH Regulator, Parameters, Logo Upload & Manual Settlement Tick ----------
+router.get('/admin/lth/protocol-search', requireRole('admin', 'finance'), (req, res, next) => {
+  try {
+    res.json(lth.searchProtocol(req.user, req.query || {}));
+  } catch (err) { next(err); }
+});
+
+router.get('/admin/lth/users/:userId/inspect', requireRole('admin', 'finance'), (req, res, next) => {
+  try {
+    res.json(lth.inspectUserProtocol(req.user, req.params.userId));
+  } catch (err) { next(err); }
+});
+
+// ---------- Admin Only: LTH Regulator, Treasury Cap/Fees, Logo Upload & Manual Settlement Tick ----------
 
 router.patch('/admin/lth/settings', requireRole('admin'), (req, res, next) => {
   try {
     res.json(lth.updateSettings(req.user, req.body || {}));
+  } catch (err) { next(err); }
+});
+
+router.patch('/admin/lth/treasury', requireRole('admin'), (req, res, next) => {
+  try {
+    res.json(lth.updateTreasurySettings(req.user, req.body || {}));
   } catch (err) { next(err); }
 });
 

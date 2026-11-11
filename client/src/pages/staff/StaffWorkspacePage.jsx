@@ -6,6 +6,7 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/StateView
 import { OperatorServicesPanel } from './OperatorPanel';
 import { FinanceReportsPanel, SupportTicketsPanel, WarehousePanel } from './SupportWarehouseFinancePanels';
 import { AdminManagementPanel } from './AdminManagementPanel';
+import { AdminLthPanel } from './AdminLthPanel';
 
 export function StaffWorkspacePage() {
   const { user, authLoading } = useAuth();
@@ -25,6 +26,9 @@ export function StaffWorkspacePage() {
     }
     if (['finance', 'operator', 'support', 'admin'].includes(user.role)) {
       allowedSections.push({ id: 'finance-reports', label: user.role === 'finance' ? '💳 امور مالی و گزارش‌ها' : '📊 گزارش‌های مجاز' });
+    }
+    if (['admin', 'finance'].includes(user.role)) {
+      allowedSections.push({ id: 'lth-protocol', label: '🔍 سرچ پروتکل، خزانه و موازین LTH' });
     }
     if (user.role === 'admin') {
       allowedSections.push({ id: 'admin', label: '🛡️ مدیریت سامانه و ممیزی' });
@@ -158,6 +162,7 @@ export function StaffWorkspacePage() {
       {activeSection === 'support' && <SupportTicketsPanel />}
       {activeSection === 'warehouse' && <WarehousePanel />}
       {activeSection === 'finance-reports' && <FinanceReportsPanel userRole={user.role} />}
+      {activeSection === 'lth-protocol' && <AdminLthPanel userRole={user.role} />}
       {activeSection === 'admin' && <AdminManagementPanel />}
     </div>
   );

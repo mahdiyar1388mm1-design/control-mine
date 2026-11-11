@@ -95,6 +95,18 @@ function formatAtomsDisplay8(atoms) {
 }
 
 /**
+ * Smart wallet LTH display: 8 decimals minimum (0.00000000), automatically expanding up to
+ * 12 decimals (e.g. 0.003088636363) when sub-10^-8 fractional precision exists.
+ */
+function formatAtomsDisplay12(atoms) {
+  return formatScaledBigInt(BigInt(atoms), ATOM_DECIMALS, {
+    minDecimals: 8,
+    maxDecimals: 12,
+    trimTrailingZeros: true
+  });
+}
+
+/**
  * Exact LTH string (at least 8 decimals, or up to 16 decimals if sub-10^-8 precision is non-zero).
  */
 function formatAtomsExact(atoms, { minDecimals = 8 } = {}) {
@@ -281,6 +293,7 @@ module.exports = {
   parseLthToAtoms,
   formatScaledBigInt,
   formatAtomsDisplay8,
+  formatAtomsDisplay12,
   formatAtomsExact,
   formatAtomsCompact,
   atomsToIrrExact,

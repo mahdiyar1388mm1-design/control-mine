@@ -81,6 +81,160 @@ function formatWalletSerialSpaced(serial) {
   return serial.replace(/(\d{4})(?=\d)/g, '$1 ');
 }
 
+function getTreasuryConfigRow() {
+  let row = get('SELECT * FROM lth_treasury_config WHERE id = 1');
+  if (!row) {
+    const now = nowIso();
+    run(
+      `INSERT OR IGNORE INTO lth_treasury_config (id, total_supply_atoms, transfer_fee_bps, sell_fee_bps, updated_at)
+       VALUES (1, '150000000000000000000000', 0, 0, ?)`,
+      [now]
+    );
+    row = get('SELECT * FROM lth_treasury_config WHERE id = 1');
+  }
+  return row;
+}
+
+function sumWalletCirculatingAtoms() {
+  const wallets = all('SELECT base_atoms, staked_atoms, withdrawable_reward_atoms, reserved_atoms FROM lth_wallets');
+  let marketAtoms = 0n;
+  let baseSum = 0n;
+  let stakedSum = 0n;
+  let withdrawableSum = 0n;
+  let reservedSum = 0n;
+  for (const w of wallets) {
+    const b = BigInt(w.base_atoms);
+    const s = BigInt(w.staked_atoms);
+    const r = BigInt(w.withdrawable_reward_atoms);
+    const v = BigInt(w.reserved_atoms);
+    baseSum += b;
+    stakedSum += s;
+    withdrawableSum += r;
+    reservedSum += v;
+    marketAtoms += b + s + r + v;
+  }
+  return { marketAtoms, baseSum, stakedSum, withdrawableSum, reservedSum, walletCount: wallets.length };
+}
+
+function sumTreasuryEventsByType() {
+  const rows = all('SELECT event_type, atoms FROM lth_treasury_ledger');
+  let returnBaseAtoms = 0n;
+  let returnStakeAtoms = 0n;
+  let returnRewardAtoms = 0n;
+  let collectFeeAtoms = 0n;
+  for (const r of rows) {
+    const a = BigInt(r.atoms);
+    if (r.event_type === 'return_base') returnBaseAtoms += a;
+    else if (r.event_type === 'return_stake') returnStakeAtoms += a;
+    else if (r.event_type === 'return_reward') returnRewardAtoms += a;
+    else if (r.event_type === 'collect_fee') collectFeeAtoms += a;
+  }
+  return { returnBaseAtoms, returnStakeAtoms, returnRewardAtoms, collectFeeAtoms, totalEvents: rows.length };
+}
+
+function formatTreasuryHeadlineLth(atoms) {
+  const b = BigInt(atoms);
+  const whole = b / math.ONE_LTH_ATOMS;
+  const frac = b % math.ONE_LTH_ATOMS;
+  if (frac === 0n) {
+    return whole.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  }
+  const wholeGroupedCommas = whole.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const fracStr = math.formatScaledBigInt(frac, math.ATOM_DECIMALS, {
+    minDecimals: 8,
+    maxDecimals: 12,
+    trimTrailingZeros: true
+  }).split('.')[1];
+  return `${wholeGroupedCommas}.${fracStr}`;
+}
+
+/**
+ * Returns the 5 approved rows of the LTH Protocol Treasury ("خزانه"):
+ * 1. دارایی (starts at 15.000.000 LTH; equals total_supply - market_circulating)
+ * 2. مقدار بازار (total LTH across user wallets)
+ * 3. جمع بازگشت استیک (cumulative unlocked PoS stake liquidated back to Treasury)
+ * 4. جمع بازگشت پایه (cumulative base LTH liquidated back to Treasury)
+ * 5. جمع کارمزد (cumulative protocol fees in LTH)
+ * Note: "جمع پرداخت" and "پاداش ماین" are intentionally omitted per approved design.
+ */
+function getTreasuryView() {
+  settleDueRewards();
+  const settings = getSettingsRow();
+  const tConfig = getTreasuryConfigRow();
+  const priceIrr = BigInt(settings.price_irr);
+
+  const totalSupplyAtoms = BigInt(tConfig.total_supply_atoms);
+  const { marketAtoms, baseSum, stakedSum, withdrawableSum, reservedSum, walletCount } = sumWalletCirculatingAtoms();
+  const assetAtoms = totalSupplyAtoms >= marketAtoms ? totalSupplyAtoms - marketAtoms : 0n;
+  const conservationOk = assetAtoms + marketAtoms === totalSupplyAtoms;
+
+  const { returnBaseAtoms, returnStakeAtoms, returnRewardAtoms, collectFeeAtoms, totalEvents } = sumTreasuryEventsByType();
+
+  return {
+    title: 'خزانه',
+    symbol: 'LTH',
+    logo_path: settings.logo_path || '/uploads/lth-logo-default.svg',
+    brand_logo_path: '/central-mine-logo.jpg',
+    total_supply_atoms: totalSupplyAtoms.toString(),
+    total_supply_lth_headline: formatTreasuryHeadlineLth(totalSupplyAtoms),
+    total_supply_lth_display_8: math.formatAtomsDisplay8(totalSupplyAtoms),
+    total_supply_lth_exact: math.formatAtomsExact(totalSupplyAtoms),
+    conservation_ok: conservationOk,
+    conservation_label: conservationOk
+      ? 'تراز کامل پروتکل برقرار است (دارایی خزانه + مقدار بازار = کل عرضه)'
+      : 'هشدار: سقف عرضه با مجموع بازار ناتراز است',
+
+    // 1. دارایی
+    asset_atoms: assetAtoms.toString(),
+    asset_lth_headline: formatTreasuryHeadlineLth(assetAtoms),
+    asset_lth_display_8: math.formatAtomsDisplay8(assetAtoms),
+    asset_lth_display_12: math.formatAtomsDisplay12(assetAtoms),
+    asset_lth_exact: math.formatAtomsExact(assetAtoms),
+    asset_irr_formatted: math.addThousandSeparators(math.atomsToIrrFloor(assetAtoms, priceIrr).toString()),
+
+    // 2. مقدار بازار
+    market_atoms: marketAtoms.toString(),
+    market_lth_display_8: math.formatAtomsDisplay8(marketAtoms),
+    market_lth_display_12: math.formatAtomsDisplay12(marketAtoms),
+    market_lth_exact: math.formatAtomsExact(marketAtoms),
+    market_irr_formatted: math.addThousandSeparators(math.atomsToIrrFloor(marketAtoms, priceIrr).toString()),
+    market_breakdown: {
+      wallet_count: walletCount,
+      base_lth_display_12: math.formatAtomsDisplay12(baseSum),
+      staked_lth_display_12: math.formatAtomsDisplay12(stakedSum),
+      withdrawable_lth_display_12: math.formatAtomsDisplay12(withdrawableSum),
+      reserved_lth_display_12: math.formatAtomsDisplay12(reservedSum)
+    },
+
+    // 3. جمع بازگشت استیک
+    returned_stake_atoms: returnStakeAtoms.toString(),
+    returned_stake_lth_display_8: math.formatAtomsDisplay8(returnStakeAtoms),
+    returned_stake_lth_display_12: math.formatAtomsDisplay12(returnStakeAtoms),
+    returned_stake_lth_exact: math.formatAtomsExact(returnStakeAtoms),
+
+    // 4. جمع بازگشت پایه
+    returned_base_atoms: returnBaseAtoms.toString(),
+    returned_base_lth_display_8: math.formatAtomsDisplay8(returnBaseAtoms),
+    returned_base_lth_display_12: math.formatAtomsDisplay12(returnBaseAtoms),
+    returned_base_lth_exact: math.formatAtomsExact(returnBaseAtoms),
+
+    // 5. جمع کارمزد
+    collected_fee_atoms: collectFeeAtoms.toString(),
+    collected_fee_lth_display_8: math.formatAtomsDisplay8(collectFeeAtoms),
+    collected_fee_lth_display_12: math.formatAtomsDisplay12(collectFeeAtoms),
+    collected_fee_lth_exact: math.formatAtomsExact(collectFeeAtoms),
+
+    // Extra audit telemetry for staff
+    returned_reward_lth_display_12: math.formatAtomsDisplay12(returnRewardAtoms),
+    treasury_events_count: totalEvents,
+    transfer_fee_bps: tConfig.transfer_fee_bps,
+    transfer_fee_percent: tConfig.transfer_fee_bps / 100,
+    sell_fee_bps: tConfig.sell_fee_bps,
+    sell_fee_percent: tConfig.sell_fee_bps / 100,
+    updated_at: tConfig.updated_at
+  };
+}
+
 function getSettingsRow() {
   ensureDefaultLogo();
   let row = get('SELECT * FROM lth_settings WHERE id = 1');
@@ -348,6 +502,14 @@ function settleDueRewards({ nowMs = Date.now(), userId = null, serverInstanceId 
             mh.id, `آزادسازی استیک پس از پایان دوره ${mh.lockup_days} روزه قرارداد ${mh.contract_code}`, nowStr
           ]
         );
+        const existingPool = get('SELECT unlocked_stake_atoms FROM lth_unlocked_stake_pools WHERE user_id = ?', [mh.user_id]);
+        const nextPoolAtoms = (existingPool ? BigInt(existingPool.unlocked_stake_atoms) : 0n) + actualUnlock;
+        run(
+          `INSERT INTO lth_unlocked_stake_pools (user_id, unlocked_stake_atoms, updated_at)
+           VALUES (?, ?, ?)
+           ON CONFLICT(user_id) DO UPDATE SET unlocked_stake_atoms = excluded.unlocked_stake_atoms, updated_at = excluded.updated_at`,
+          [mh.user_id, nextPoolAtoms.toString(), nowStr]
+        );
         notify(
           mh.user_id,
           'lth_stake_unlocked',
@@ -604,24 +766,28 @@ function getWalletView(user) {
       // 1. حجم پایه
       base_atoms: baseAtoms.toString(),
       base_lth_display_8: math.formatAtomsDisplay8(baseAtoms),
+      base_lth_display_12: math.formatAtomsDisplay12(baseAtoms),
       base_lth_exact: math.formatAtomsExact(baseAtoms),
       base_irr_exact: math.atomsToIrrExact(baseAtoms, priceIrr),
 
       // 2. استیک (PoS)
       staked_atoms: stakedAtoms.toString(),
       staked_lth_display_8: math.formatAtomsDisplay8(stakedAtoms),
+      staked_lth_display_12: math.formatAtomsDisplay12(stakedAtoms),
       staked_lth_exact: math.formatAtomsExact(stakedAtoms),
       staked_irr_exact: math.atomsToIrrExact(stakedAtoms, priceIrr),
 
       // 3. حجم پاداش قابل برداشت LTH
       withdrawable_reward_atoms: withdrawableRewardAtoms.toString(),
       withdrawable_reward_lth_display_8: math.formatAtomsDisplay8(withdrawableRewardAtoms),
+      withdrawable_reward_lth_display_12: math.formatAtomsDisplay12(withdrawableRewardAtoms),
       withdrawable_reward_lth_exact: math.formatAtomsExact(withdrawableRewardAtoms),
       withdrawable_reward_irr_exact: math.atomsToIrrExact(withdrawableRewardAtoms, priceIrr),
 
       // 4. جمع ال تی اچ قابل برداشت
       total_withdrawable_atoms: totalWithdrawableAtoms.toString(),
       total_withdrawable_lth_display_8: math.formatAtomsDisplay8(totalWithdrawableAtoms),
+      total_withdrawable_lth_display_12: math.formatAtomsDisplay12(totalWithdrawableAtoms),
       total_withdrawable_lth_exact: math.formatAtomsExact(totalWithdrawableAtoms),
 
       // 5. قابل برداشت (به ریال)
@@ -638,11 +804,13 @@ function getWalletView(user) {
       // 7. جمع ال تی اچ
       total_lth_atoms: totalLthAtoms.toString(),
       total_lth_display_8: math.formatAtomsDisplay8(totalLthAtoms),
+      total_lth_display_12: math.formatAtomsDisplay12(totalLthAtoms),
       total_lth_exact: math.formatAtomsExact(totalLthAtoms),
 
       // در انتظار تسویه شبا (رزروشده)
       reserved_atoms: reservedAtoms.toString(),
       reserved_lth_display_8: math.formatAtomsDisplay8(reservedAtoms),
+      reserved_lth_display_12: math.formatAtomsDisplay12(reservedAtoms),
       reserved_irr_formatted: math.addThousandSeparators(math.atomsToIrrFloor(reservedAtoms, priceIrr).toString()),
 
       updated_at: wallet.updated_at
@@ -686,6 +854,12 @@ function createPurchase(user, input, idempotencyKey) {
     const lthAtoms = (amountIrr * math.ONE_LTH_ATOMS) / priceIrr;
     if (lthAtoms <= 0n) {
       throw ApiError.validation('مبلغ انتخابی برای خرید حداقل واحد LTH کافی نیست.', [{ field: 'amount_toman', message: 'مبلغ بسیار کوچک است.' }]);
+    }
+
+    const tConfig = getTreasuryConfigRow();
+    const { marketAtoms } = sumWalletCirculatingAtoms();
+    if (marketAtoms + lthAtoms > BigInt(tConfig.total_supply_atoms)) {
+      throw ApiError.invalidState('ظرفیت دارایی خزانهٔ LTH برای صدور این حجم خرید کافی نیست.');
     }
 
     const now = nowIso();
@@ -927,6 +1101,7 @@ function createShebaWithdrawalOrSell(user, input) {
   return tx(() => {
     const settings = getSettingsRow();
     const priceIrr = BigInt(settings.price_irr);
+    const tConfig = getTreasuryConfigRow();
     const wallet = ensureWalletInTx(user.id);
 
     const baseAtoms = BigInt(wallet.base_atoms);
@@ -965,7 +1140,11 @@ function createShebaWithdrawalOrSell(user, input) {
       );
     }
 
-    const settlementIrr = math.atomsToIrrFloor(requestedAtoms, priceIrr);
+    const feeBps = kind === 'sell_lth' ? BigInt(tConfig.sell_fee_bps || 0) : 0n;
+    const feeAtoms = feeBps > 0n ? (requestedAtoms * feeBps) / 10000n : 0n;
+    const netSettlementAtoms = requestedAtoms - feeAtoms;
+
+    const settlementIrr = math.atomsToIrrFloor(netSettlementAtoms, priceIrr);
     const settlementToman = Number(settlementIrr / 10n);
     if (settlementToman < 1000) {
       throw ApiError.validation('حداقل مبلغ قابل تسویه از طریق شبکهٔ شبا ۱۰٬۰۰۰ ریال (۱٬۰۰۰ تومان) است.', [
@@ -1157,6 +1336,10 @@ function reviewWithdrawal(staffUser, code, input) {
     const now = nowIso();
 
     if (data.action === 'approve_paid') {
+      const tConfig = getTreasuryConfigRow();
+      const sellFeeBps = row.kind === 'sell_lth' ? BigInt(tConfig.sell_fee_bps || 0) : 0n;
+      const feeAtoms = sellFeeBps > 0n ? (total * sellFeeBps) / 10000n : 0n;
+
       run(
         `UPDATE lth_wallets SET reserved_atoms = ?, updated_at = ? WHERE user_id = ?`,
         [(BigInt(wallet.reserved_atoms) - total).toString(), now, row.user_id]
@@ -1178,6 +1361,49 @@ function reviewWithdrawal(staffUser, code, input) {
           row.id, `تسویه نهایی شبا (${row.code}) — مرجع بانکی ${data.bank_ref.trim()}`, now
         ]
       );
+
+      // Record Protocol Treasury ("خزانه") return accounting:
+      // 1) جمع بازگشت پایه (from_base_atoms)
+      if (fromBase > 0n) {
+        run(
+          `INSERT INTO lth_treasury_ledger (id, event_type, atoms, user_id, ref_type, ref_id, note, created_at)
+           VALUES (?, 'return_base', ?, ?, 'sheba_withdrawal', ?, ?, ?)`,
+          [uuid(), fromBase.toString(), row.user_id, row.id, `بازگشت حجم پایه به خزانه (${row.code})`, now]
+        );
+      }
+      // 2) جمع بازگشت استیک (portion of from_reward_atoms originating from unlocked post-3285d stake)
+      if (fromReward > 0n) {
+        const poolRow = get('SELECT unlocked_stake_atoms FROM lth_unlocked_stake_pools WHERE user_id = ?', [row.user_id]);
+        const poolAtoms = poolRow ? BigInt(poolRow.unlocked_stake_atoms) : 0n;
+        const returnedStake = poolAtoms >= fromReward ? fromReward : poolAtoms;
+        const returnedRegularReward = fromReward - returnedStake;
+        if (returnedStake > 0n) {
+          run(
+            `UPDATE lth_unlocked_stake_pools SET unlocked_stake_atoms = ?, updated_at = ? WHERE user_id = ?`,
+            [(poolAtoms - returnedStake).toString(), now, row.user_id]
+          );
+          run(
+            `INSERT INTO lth_treasury_ledger (id, event_type, atoms, user_id, ref_type, ref_id, note, created_at)
+             VALUES (?, 'return_stake', ?, ?, 'sheba_withdrawal', ?, ?, ?)`,
+            [uuid(), returnedStake.toString(), row.user_id, row.id, `بازگشت استیک آزادشده به خزانه (${row.code})`, now]
+          );
+        }
+        if (returnedRegularReward > 0n) {
+          run(
+            `INSERT INTO lth_treasury_ledger (id, event_type, atoms, user_id, ref_type, ref_id, note, created_at)
+             VALUES (?, 'return_reward', ?, ?, 'sheba_withdrawal', ?, ?, ?)`,
+            [uuid(), returnedRegularReward.toString(), row.user_id, row.id, `تسویه پاداش قابل برداشت (${row.code})`, now]
+          );
+        }
+      }
+      // 3) جمع کارمزد (if sell_fee_bps > 0)
+      if (feeAtoms > 0n) {
+        run(
+          `INSERT INTO lth_treasury_ledger (id, event_type, atoms, user_id, ref_type, ref_id, note, created_at)
+           VALUES (?, 'collect_fee', ?, ?, 'sheba_withdrawal', ?, ?, ?)`,
+          [uuid(), feeAtoms.toString(), row.user_id, row.id, `کارمزد تسویه فروش (${row.code})`, now]
+        );
+      }
       notify(
         row.user_id,
         'lth_withdrawal_paid',
@@ -1302,6 +1528,11 @@ function createAccountTransfer(sender, input) {
       deductBaseFromHoldingsFifo(sender.id, fromBase, now);
     }
 
+    const tConfig = getTreasuryConfigRow();
+    const transferFeeBps = BigInt(tConfig.transfer_fee_bps || 0);
+    const feeAtoms = transferFeeBps > 0n ? (atoms * transferFeeBps) / 10000n : 0n;
+    const netRecipientAtoms = atoms - feeAtoms;
+
     run(
       `UPDATE lth_wallets
        SET base_atoms = ?, withdrawable_reward_atoms = ?, updated_at = ?
@@ -1313,7 +1544,7 @@ function createAccountTransfer(sender, input) {
       `UPDATE lth_wallets
        SET withdrawable_reward_atoms = ?, updated_at = ?
        WHERE user_id = ?`,
-      [(BigInt(recipientWallet.withdrawable_reward_atoms) + atoms).toString(), now, recipientUser.id]
+      [(BigInt(recipientWallet.withdrawable_reward_atoms) + netRecipientAtoms).toString(), now, recipientUser.id]
     );
 
     const transferId = uuid();
@@ -1351,10 +1582,18 @@ function createAccountTransfer(sender, input) {
         irr_value_snapshot, ref_type, ref_id, note, created_at
       ) VALUES (?, ?, 'p2p_transfer_in', '0', '0', ?, '0', ?, ?, 'lth_transfer', ?, ?, ?)`,
       [
-        uuid(), recipientUser.id, atoms.toString(),
-        priceIrr.toString(), irrEq, transferId, `دریافت انتقال حساب به حساب (${code}) از ${sender.full_name}`, now
+        uuid(), recipientUser.id, netRecipientAtoms.toString(),
+        priceIrr.toString(), math.atomsToIrrExact(netRecipientAtoms, priceIrr), transferId, `دریافت انتقال حساب به حساب (${code}) از ${sender.full_name}`, now
       ]
     );
+
+    if (feeAtoms > 0n) {
+      run(
+        `INSERT INTO lth_treasury_ledger (id, event_type, atoms, user_id, ref_type, ref_id, note, created_at)
+         VALUES (?, 'collect_fee', ?, ?, 'lth_transfer', ?, ?, ?)`,
+        [uuid(), feeAtoms.toString(), sender.id, transferId, `کارمزد انتقال حساب به حساب (${code})`, now]
+      );
+    }
 
     notify(
       recipientUser.id,
@@ -1568,10 +1807,553 @@ function getClusterSchedulerStatus() {
   };
 }
 
+/**
+ * Admin-only update of Protocol Treasury ("خزانه") total supply cap & fee bps, logged in audit_log.
+ */
+function updateTreasurySettings(adminUser, input) {
+  if (adminUser.role !== 'admin') throw ApiError.forbidden();
+  const reasonData = validate(input)
+    .string('reason', { min: 3, max: 300 })
+    .done();
+
+  const current = getTreasuryConfigRow();
+  let nextTotalSupplyAtoms = BigInt(current.total_supply_atoms);
+  if (input.total_supply_lth !== undefined && input.total_supply_lth !== null && String(input.total_supply_lth).trim() !== '') {
+    try {
+      nextTotalSupplyAtoms = math.parseLthToAtoms(input.total_supply_lth, { allowZero: false });
+    } catch (err) {
+      throw ApiError.validation(err.message, [{ field: 'total_supply_lth', message: err.message }]);
+    }
+    const { marketAtoms } = sumWalletCirculatingAtoms();
+    if (nextTotalSupplyAtoms < marketAtoms) {
+      throw ApiError.invalidState(
+        `کل عرضهٔ خزانه نمی‌تواند کمتر از مقدار فعلی در گردش بازار (${math.formatAtomsDisplay12(marketAtoms)} LTH) باشد.`
+      );
+    }
+  }
+
+  let nextTransferFeeBps = current.transfer_fee_bps;
+  if (input.transfer_fee_percent !== undefined && input.transfer_fee_percent !== null && input.transfer_fee_percent !== '') {
+    const num = Number(input.transfer_fee_percent);
+    if (!Number.isFinite(num) || num < 0 || num > 20) {
+      throw ApiError.validation('درصد کارمزد انتقال باید بین ۰ تا ۲۰ درصد باشد.', [{ field: 'transfer_fee_percent', message: 'بین ۰ تا ۲۰ وارد کنید.' }]);
+    }
+    nextTransferFeeBps = Math.round(num * 100);
+  }
+
+  let nextSellFeeBps = current.sell_fee_bps;
+  if (input.sell_fee_percent !== undefined && input.sell_fee_percent !== null && input.sell_fee_percent !== '') {
+    const num = Number(input.sell_fee_percent);
+    if (!Number.isFinite(num) || num < 0 || num > 20) {
+      throw ApiError.validation('درصد کارمزد فروش باید بین ۰ تا ۲۰ درصد باشد.', [{ field: 'sell_fee_percent', message: 'بین ۰ تا ۲۰ وارد کنید.' }]);
+    }
+    nextSellFeeBps = Math.round(num * 100);
+  }
+
+  const now = nowIso();
+  tx(() => {
+    run(
+      `UPDATE lth_treasury_config
+       SET total_supply_atoms = ?, transfer_fee_bps = ?, sell_fee_bps = ?, updated_at = ?
+       WHERE id = 1`,
+      [nextTotalSupplyAtoms.toString(), nextTransferFeeBps, nextSellFeeBps, now]
+    );
+    audit(adminUser.id, adminUser.role, 'lth.treasury.update', 'lth_treasury_config', '1', {
+      reason: reasonData.reason,
+      before: {
+        total_supply_lth: math.formatAtomsDisplay8(current.total_supply_atoms),
+        transfer_fee_percent: current.transfer_fee_bps / 100,
+        sell_fee_percent: current.sell_fee_bps / 100
+      },
+      after: {
+        total_supply_lth: math.formatAtomsDisplay8(nextTotalSupplyAtoms),
+        transfer_fee_percent: nextTransferFeeBps / 100,
+        sell_fee_percent: nextSellFeeBps / 100
+      }
+    });
+  });
+
+  return { treasury: getTreasuryView() };
+}
+
+function normalizeSearchTerm(raw) {
+  if (!raw) return '';
+  return String(raw)
+    .trim()
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660));
+}
+
+function buildWalletMetricsSummary(walletRow, priceIrr) {
+  const baseAtoms = BigInt(walletRow.base_atoms);
+  const stakedAtoms = BigInt(walletRow.staked_atoms);
+  const withdrawableRewardAtoms = BigInt(walletRow.withdrawable_reward_atoms);
+  const reservedAtoms = BigInt(walletRow.reserved_atoms);
+  const totalWithdrawableAtoms = baseAtoms + withdrawableRewardAtoms;
+  const totalLthAtoms = baseAtoms + stakedAtoms + withdrawableRewardAtoms;
+  const withdrawableIrrFloor = math.atomsToIrrFloor(totalWithdrawableAtoms, priceIrr);
+  const totalIrrFloor = math.atomsToIrrFloor(totalLthAtoms, priceIrr);
+
+  return {
+    wallet_serial: formatWalletSerialSpaced(walletRow.wallet_serial),
+    wallet_serial_raw: walletRow.wallet_serial,
+    // 1. حجم پایه
+    base_lth_display_12: math.formatAtomsDisplay12(baseAtoms),
+    base_lth_exact: math.formatAtomsExact(baseAtoms),
+    // 2. استیک
+    staked_lth_display_12: math.formatAtomsDisplay12(stakedAtoms),
+    staked_lth_exact: math.formatAtomsExact(stakedAtoms),
+    // 3. حجم پاداش قابل برداشت LTH
+    withdrawable_reward_lth_display_12: math.formatAtomsDisplay12(withdrawableRewardAtoms),
+    withdrawable_reward_lth_exact: math.formatAtomsExact(withdrawableRewardAtoms),
+    // 4. جمع ال تی اچ قابل برداشت
+    total_withdrawable_lth_display_12: math.formatAtomsDisplay12(totalWithdrawableAtoms),
+    total_withdrawable_lth_exact: math.formatAtomsExact(totalWithdrawableAtoms),
+    // 5. قابل برداشت (به ریال)
+    withdrawable_irr_formatted: math.addThousandSeparators(withdrawableIrrFloor.toString()),
+    withdrawable_irr_exact: math.atomsToIrrExact(totalWithdrawableAtoms, priceIrr),
+    // 6. جمع ریال
+    total_irr_formatted: math.addThousandSeparators(totalIrrFloor.toString()),
+    total_irr_exact: math.atomsToIrrExact(totalLthAtoms, priceIrr),
+    // 7. جمع ال تی اچ
+    total_lth_atoms: totalLthAtoms.toString(),
+    total_lth_display_12: math.formatAtomsDisplay12(totalLthAtoms),
+    total_lth_exact: math.formatAtomsExact(totalLthAtoms),
+    // در رزرو شبا
+    reserved_lth_display_12: math.formatAtomsDisplay12(reservedAtoms),
+    updated_at: walletRow.updated_at
+  };
+}
+
+/**
+ * Unified Backend Protocol Search, Metrics Inspector & Quantity Control
+ * ("سرچ پروتکل در بک‌اند برای بررسی راحت‌تر موازین و کنترل مقادیر")
+ * Restricted to admin and finance roles.
+ */
+function searchProtocol(staffUser, query = {}) {
+  if (!['admin', 'finance'].includes(staffUser.role)) throw ApiError.forbidden();
+  settleDueRewards();
+
+  const settings = getSettingsRow();
+  const priceIrr = BigInt(settings.price_irr);
+  const treasury = getTreasuryView();
+  const reconciliation = reconcileLedger();
+
+  const rawQ = normalizeSearchTerm(query.q || '');
+  const compactQ = rawQ.replace(/\s+/g, '');
+  const scope = ['all', 'wallets', 'contracts', 'withdrawals', 'transfers', 'ledger', 'treasury'].includes(query.scope)
+    ? query.scope
+    : 'all';
+  const limit = Math.min(100, Math.max(5, Number.parseInt(query.limit, 10) || 40));
+
+  let minAtoms = null;
+  let maxAtoms = null;
+  if (query.min_lth !== undefined && String(query.min_lth).trim() !== '') {
+    try {
+      minAtoms = math.parseLthToAtoms(query.min_lth, { allowZero: true });
+    } catch (err) {
+      throw ApiError.validation(err.message, [{ field: 'min_lth', message: err.message }]);
+    }
+  }
+  if (query.max_lth !== undefined && String(query.max_lth).trim() !== '') {
+    try {
+      maxAtoms = math.parseLthToAtoms(query.max_lth, { allowZero: true });
+    } catch (err) {
+      throw ApiError.validation(err.message, [{ field: 'max_lth', message: err.message }]);
+    }
+  }
+
+  const onlyWithBalance = query.only_with_balance === 'true' || query.only_with_balance === true;
+  const onlyMismatch = query.only_mismatch === 'true' || query.only_mismatch === true;
+  const projectionDays = Math.min(3650, Math.max(1, Number.parseInt(query.projection_days, 10) || 30));
+
+  // Global active base & N-day reward obligation projection ("کنترل مقادیر و موازین")
+  const allActiveHoldings = all(`SELECT active_base_atoms, stake_unlock_at_ms FROM lth_holdings WHERE status = 'active'`);
+  let totalActiveBaseAtoms = 0n;
+  let globalDailyRewardAtoms = 0n;
+  let globalDailyStakedAtoms = 0n;
+  let globalDailyWithdrawableAtoms = 0n;
+  let unlockingWithinProjectionAtoms = 0n;
+  const horizonMs = Date.now() + projectionDays * 86400000;
+
+  for (const h of allActiveHoldings) {
+    const ab = BigInt(h.active_base_atoms);
+    if (ab <= 0n) continue;
+    totalActiveBaseAtoms += ab;
+    const split = math.computeDailyRewardSplit(ab, settings.reward_per_min_unit_atoms, settings.stake_bps);
+    globalDailyRewardAtoms += split.totalRewardAtoms;
+    globalDailyStakedAtoms += split.stakedAtoms;
+    globalDailyWithdrawableAtoms += split.withdrawableAtoms;
+  }
+
+  const upcomingUnlockRows = all(
+    `SELECT accrued_staked_atoms FROM lth_holdings WHERE stake_unlocked = 0 AND stake_unlock_at_ms <= ?`,
+    [horizonMs]
+  );
+  for (const u of upcomingUnlockRows) {
+    unlockingWithinProjectionAtoms += BigInt(u.accrued_staked_atoms);
+  }
+
+  const projectedRewardAtoms = globalDailyRewardAtoms * BigInt(projectionDays);
+  const projectedStakedAtoms = globalDailyStakedAtoms * BigInt(projectionDays);
+  const projectedWithdrawableAtoms = globalDailyWithdrawableAtoms * BigInt(projectionDays);
+  const treasuryAssetAtoms = BigInt(treasury.asset_atoms);
+  const treasuryCoversProjection = treasuryAssetAtoms >= projectedRewardAtoms;
+
+  const metricsControl = {
+    active_contracts_count: allActiveHoldings.length,
+    active_earning_base_lth_display_12: math.formatAtomsDisplay12(totalActiveBaseAtoms),
+    active_earning_base_irr_formatted: math.addThousandSeparators(math.atomsToIrrFloor(totalActiveBaseAtoms, priceIrr).toString()),
+    daily_24h_obligation: {
+      total_reward_lth_display_12: math.formatAtomsDisplay12(globalDailyRewardAtoms),
+      staked_reward_lth_display_12: math.formatAtomsDisplay12(globalDailyStakedAtoms),
+      withdrawable_reward_lth_display_12: math.formatAtomsDisplay12(globalDailyWithdrawableAtoms),
+      total_reward_irr_formatted: math.addThousandSeparators(math.atomsToIrrFloor(globalDailyRewardAtoms, priceIrr).toString()),
+      withdrawable_reward_irr_formatted: math.addThousandSeparators(math.atomsToIrrFloor(globalDailyWithdrawableAtoms, priceIrr).toString())
+    },
+    projection: {
+      days: projectionDays,
+      projected_total_reward_lth_display_12: math.formatAtomsDisplay12(projectedRewardAtoms),
+      projected_staked_lth_display_12: math.formatAtomsDisplay12(projectedStakedAtoms),
+      projected_withdrawable_lth_display_12: math.formatAtomsDisplay12(projectedWithdrawableAtoms),
+      projected_total_reward_irr_formatted: math.addThousandSeparators(math.atomsToIrrFloor(projectedRewardAtoms, priceIrr).toString()),
+      stakes_unlocking_in_window_lth_display_12: math.formatAtomsDisplay12(unlockingWithinProjectionAtoms),
+      treasury_covers_projection: treasuryCoversProjection
+    }
+  };
+
+  // 1) Wallets search & balance/reconciliation check
+  let wallets = [];
+  if (scope === 'all' || scope === 'wallets') {
+    const wWhere = [];
+    const wParams = [];
+    if (rawQ) {
+      wWhere.push(
+        '(u.full_name LIKE ? OR u.phone LIKE ? OR u.email LIKE ? OR w.wallet_serial LIKE ? OR u.id = ?)'
+      );
+      wParams.push(`%${rawQ}%`, `%${compactQ}%`, `%${rawQ}%`, `%${compactQ}%`, rawQ);
+    }
+    const wSql = wWhere.length ? `WHERE ${wWhere.join(' AND ')}` : '';
+    const rawWallets = all(
+      `SELECT w.*, u.full_name, u.phone, u.email, u.role, u.status AS user_status
+       FROM lth_wallets w
+       JOIN users u ON u.id = w.user_id
+       ${wSql}
+       ORDER BY w.updated_at DESC
+       LIMIT 200`,
+      wParams
+    );
+
+    for (const rw of rawWallets) {
+      const totalAtoms = BigInt(rw.base_atoms) + BigInt(rw.staked_atoms) + BigInt(rw.withdrawable_reward_atoms) + BigInt(rw.reserved_atoms);
+      if (onlyWithBalance && totalAtoms === 0n) continue;
+      if (minAtoms !== null && totalAtoms < minAtoms) continue;
+      if (maxAtoms !== null && totalAtoms > maxAtoms) continue;
+
+      const userRec = reconcileLedger({ userId: rw.user_id });
+      if (onlyMismatch && userRec.healthy) continue;
+
+      const activeContractsCount = get(
+        `SELECT COUNT(*) AS c FROM lth_holdings WHERE user_id = ? AND status = 'active'`,
+        [rw.user_id]
+      ).c;
+
+      wallets.push({
+        user_id: rw.user_id,
+        full_name: rw.full_name,
+        phone_masked: maskPhone(rw.phone),
+        role: rw.role,
+        user_status: rw.user_status,
+        ledger_healthy: userRec.healthy,
+        ledger_entries_count: userRec.checked_ledger_entries,
+        active_contracts_count: activeContractsCount,
+        metrics: buildWalletMetricsSummary(rw, priceIrr)
+      });
+      if (wallets.length >= limit) break;
+    }
+  }
+
+  // 2) Smart Contracts (POS-... & LP-...) search
+  let contracts = [];
+  if (scope === 'all' || scope === 'contracts') {
+    const cWhere = [];
+    const cParams = [];
+    if (rawQ) {
+      cWhere.push(
+        '(h.contract_code LIKE ? OR p.code LIKE ? OR u.full_name LIKE ? OR u.phone LIKE ?)'
+      );
+      cParams.push(`%${compactQ.toUpperCase()}%`, `%${compactQ.toUpperCase()}%`, `%${rawQ}%`, `%${compactQ}%`);
+    }
+    if (query.contract_status === 'unlocked') {
+      cWhere.push('h.stake_unlocked = 1');
+    } else if (query.contract_status && ['active', 'redeemed'].includes(query.contract_status)) {
+      cWhere.push('h.status = ?');
+      cParams.push(query.contract_status);
+    }
+    const cSql = cWhere.length ? `WHERE ${cWhere.join(' AND ')}` : '';
+    const cRows = all(
+      `SELECT h.*, p.code AS purchase_code, p.amount_toman AS purchase_toman,
+              u.full_name AS user_name, u.phone AS user_phone
+       FROM lth_holdings h
+       JOIN lth_purchase_orders p ON p.id = h.purchase_order_id
+       JOIN users u ON u.id = h.user_id
+       ${cSql}
+       ORDER BY h.purchased_at_ms DESC
+       LIMIT ?`,
+      [...cParams, limit]
+    );
+    contracts = cRows
+      .filter((h) => {
+        const ab = BigInt(h.active_base_atoms);
+        if (minAtoms !== null && ab < minAtoms) return false;
+        if (maxAtoms !== null && ab > maxAtoms) return false;
+        return true;
+      })
+      .map((h) => {
+        const daysRemaining = Math.max(0, Math.ceil((Number(h.stake_unlock_at_ms) - Date.now()) / 86400000));
+        const daily = math.computeDailyRewardSplit(h.active_base_atoms, settings.reward_per_min_unit_atoms, settings.stake_bps);
+        return {
+          id: h.id,
+          contract_code: h.contract_code,
+          purchase_code: h.purchase_code,
+          purchase_toman: h.purchase_toman,
+          user_id: h.user_id,
+          user_name: h.user_name,
+          user_phone_masked: maskPhone(h.user_phone),
+          initial_base_lth_display_12: math.formatAtomsDisplay12(h.initial_base_atoms),
+          active_base_lth_display_12: math.formatAtomsDisplay12(h.active_base_atoms),
+          accrued_staked_lth_display_12: math.formatAtomsDisplay12(h.accrued_staked_atoms),
+          accrued_withdrawable_lth_display_12: math.formatAtomsDisplay12(h.accrued_withdrawable_atoms),
+          daily_reward_lth_display_12: math.formatAtomsDisplay12(daily.totalRewardAtoms),
+          lockup_days: h.lockup_days,
+          days_remaining: daysRemaining,
+          stake_unlocked: Boolean(h.stake_unlocked),
+          last_reward_cycle: h.last_reward_cycle,
+          purchased_at: h.purchased_at,
+          stake_unlock_at: h.stake_unlock_at,
+          status: h.status
+        };
+      });
+  }
+
+  // 3) Sheba Withdrawals & Sell LTH (SW-...)
+  let withdrawals = [];
+  if (scope === 'all' || scope === 'withdrawals') {
+    const swWhere = [];
+    const swParams = [];
+    if (rawQ) {
+      swWhere.push(
+        '(w.code LIKE ? OR w.sheba_iban LIKE ? OR w.bank_ref LIKE ? OR w.account_holder_name LIKE ? OR u.full_name LIKE ? OR u.phone LIKE ?)'
+      );
+      swParams.push(
+        `%${compactQ.toUpperCase()}%`,
+        `%${compactQ.toUpperCase()}%`,
+        `%${rawQ}%`,
+        `%${rawQ}%`,
+        `%${rawQ}%`,
+        `%${compactQ}%`
+      );
+    }
+    if (query.withdrawal_status && ['pending', 'paid', 'rejected', 'canceled'].includes(query.withdrawal_status)) {
+      swWhere.push('w.status = ?');
+      swParams.push(query.withdrawal_status);
+    }
+    const swSql = swWhere.length ? `WHERE ${swWhere.join(' AND ')}` : '';
+    withdrawals = all(
+      `SELECT w.*, u.full_name AS user_name, u.phone AS user_phone
+       FROM lth_sheba_withdrawals w
+       JOIN users u ON u.id = w.user_id
+       ${swSql}
+       ORDER BY w.created_at DESC
+       LIMIT ?`,
+      [...swParams, limit]
+    ).map((r) => ({
+      ...withdrawalToJson(r),
+      lth_display_12: math.formatAtomsDisplay12(r.total_atoms),
+      user_name: r.user_name,
+      user_phone_masked: maskPhone(r.user_phone)
+    }));
+  }
+
+  // 4) Account-to-Account Transfers (TR-...)
+  let transfers = [];
+  if (scope === 'all' || scope === 'transfers') {
+    const trWhere = [];
+    const trParams = [];
+    if (rawQ) {
+      trWhere.push('(t.code LIKE ? OR t.note LIKE ? OR s.full_name LIKE ? OR r.full_name LIKE ? OR s.phone LIKE ? OR r.phone LIKE ?)');
+      trParams.push(`%${compactQ.toUpperCase()}%`, `%${rawQ}%`, `%${rawQ}%`, `%${rawQ}%`, `%${compactQ}%`, `%${compactQ}%`);
+    }
+    const trSql = trWhere.length ? `WHERE ${trWhere.join(' AND ')}` : '';
+    transfers = all(
+      `SELECT t.*, s.full_name AS sender_name, s.phone AS sender_phone,
+              r.full_name AS recipient_name, r.phone AS recipient_phone
+       FROM lth_transfers t
+       JOIN users s ON s.id = t.sender_id
+       JOIN users r ON r.id = t.recipient_id
+       ${trSql}
+       ORDER BY t.created_at DESC
+       LIMIT ?`,
+      [...trParams, limit]
+    ).map((t) => ({
+      id: t.id,
+      code: t.code,
+      sender_id: t.sender_id,
+      sender_name: t.sender_name,
+      sender_phone_masked: maskPhone(t.sender_phone),
+      recipient_id: t.recipient_id,
+      recipient_name: t.recipient_name,
+      recipient_phone_masked: maskPhone(t.recipient_phone),
+      lth_display_12: math.formatAtomsDisplay12(t.total_atoms),
+      lth_exact: math.formatAtomsExact(t.total_atoms),
+      irr_formatted: math.addThousandSeparators(t.irr_equivalent),
+      note: t.note,
+      created_at: t.created_at
+    }));
+  }
+
+  // 5) Double-Entry Ledger (lth_ledger)
+  let ledgerEntries = [];
+  if (scope === 'all' || scope === 'ledger') {
+    const lWhere = [];
+    const lParams = [];
+    if (rawQ) {
+      lWhere.push('(l.note LIKE ? OR l.ref_id LIKE ? OR u.full_name LIKE ? OR u.phone LIKE ?)');
+      lParams.push(`%${rawQ}%`, `%${compactQ}%`, `%${rawQ}%`, `%${compactQ}%`);
+    }
+    if (query.ledger_type) {
+      lWhere.push('l.entry_type = ?');
+      lParams.push(query.ledger_type);
+    }
+    const lSql = lWhere.length ? `WHERE ${lWhere.join(' AND ')}` : '';
+    ledgerEntries = all(
+      `SELECT l.*, u.full_name AS user_name, u.phone AS user_phone
+       FROM lth_ledger l
+       JOIN users u ON u.id = l.user_id
+       ${lSql}
+       ORDER BY l.created_at DESC
+       LIMIT ?`,
+      [...lParams, limit]
+    ).map((l) => ({
+      id: l.id,
+      user_id: l.user_id,
+      user_name: l.user_name,
+      user_phone_masked: maskPhone(l.user_phone),
+      entry_type: l.entry_type,
+      delta_base_lth: math.formatAtomsCompact(l.delta_base_atoms) || '0',
+      delta_staked_lth: math.formatAtomsCompact(l.delta_staked_atoms) || '0',
+      delta_withdrawable_lth: math.formatAtomsCompact(l.delta_withdrawable_atoms) || '0',
+      delta_reserved_lth: math.formatAtomsCompact(l.delta_reserved_atoms) || '0',
+      irr_value_snapshot: l.irr_value_snapshot,
+      ref_type: l.ref_type,
+      ref_id: l.ref_id,
+      note: l.note,
+      created_at: l.created_at
+    }));
+  }
+
+  // 6) Treasury Return & Fee Events (lth_treasury_ledger)
+  let treasuryEvents = [];
+  if (scope === 'all' || scope === 'treasury') {
+    const tWhere = [];
+    const tParams = [];
+    if (rawQ) {
+      tWhere.push('(tl.note LIKE ? OR tl.ref_id LIKE ? OR u.full_name LIKE ?)');
+      tParams.push(`%${rawQ}%`, `%${compactQ}%`, `%${rawQ}%`);
+    }
+    const tSql = tWhere.length ? `WHERE ${tWhere.join(' AND ')}` : '';
+    treasuryEvents = all(
+      `SELECT tl.*, u.full_name AS user_name
+       FROM lth_treasury_ledger tl
+       LEFT JOIN users u ON u.id = tl.user_id
+       ${tSql}
+       ORDER BY tl.created_at DESC
+       LIMIT ?`,
+      [...tParams, limit]
+    ).map((tl) => ({
+      id: tl.id,
+      event_type: tl.event_type,
+      event_label: {
+        return_base: 'بازگشت حجم پایه به خزانه',
+        return_stake: 'بازگشت استیک آزادشده به خزانه',
+        return_reward: 'تسویه پاداش قابل برداشت',
+        collect_fee: 'وصول کارمزد پروتکل به خزانه'
+      }[tl.event_type] || tl.event_type,
+      lth_display_12: math.formatAtomsDisplay12(tl.atoms),
+      lth_exact: math.formatAtomsExact(tl.atoms),
+      user_name: tl.user_name || 'سیستم',
+      note: tl.note,
+      created_at: tl.created_at
+    }));
+  }
+
+  return {
+    query: { q: rawQ, scope, projection_days: projectionDays },
+    treasury,
+    reconciliation,
+    metrics_control: metricsControl,
+    results: {
+      wallets,
+      contracts,
+      withdrawals,
+      transfers,
+      ledger_entries: ledgerEntries,
+      treasury_events: treasuryEvents
+    }
+  };
+}
+
+/**
+ * Full 360-degree Protocol & 7-Metric Wallet Inspector for a single user ("بازرسی کامل موازین کاربر").
+ */
+function inspectUserProtocol(staffUser, targetUserId) {
+  if (!['admin', 'finance'].includes(staffUser.role)) throw ApiError.forbidden();
+  const targetUser = get('SELECT id, full_name, phone, email, role, status, created_at FROM users WHERE id = ?', [targetUserId]);
+  if (!targetUser) throw ApiError.notFound('کاربر مورد نظر در پروتکل یافت نشد.');
+
+  const view = getWalletView({ id: targetUser.id });
+  const poolRow = get('SELECT unlocked_stake_atoms FROM lth_unlocked_stake_pools WHERE user_id = ?', [targetUser.id]);
+  const purchases = all(
+    'SELECT * FROM lth_purchase_orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 30',
+    [targetUser.id]
+  ).map((p) => ({
+    id: p.id,
+    code: p.code,
+    amount_toman: p.amount_toman,
+    amount_irr_formatted: math.addThousandSeparators(p.amount_irr),
+    lth_display_12: math.formatAtomsDisplay12(p.lth_atoms),
+    status: p.status,
+    fulfilled_at: p.fulfilled_at,
+    created_at: p.created_at
+  }));
+
+  return {
+    user: {
+      id: targetUser.id,
+      full_name: targetUser.full_name,
+      phone_masked: maskPhone(targetUser.phone),
+      email: targetUser.email,
+      role: targetUser.role,
+      status: targetUser.status,
+      created_at: targetUser.created_at
+    },
+    unlocked_stake_pool_lth_display_12: math.formatAtomsDisplay12(poolRow ? poolRow.unlocked_stake_atoms : '0'),
+    wallet: view.wallet,
+    reconciliation: view.reconciliation,
+    holdings: view.holdings,
+    purchases,
+    withdrawals: view.withdrawals,
+    transfers: view.transfers,
+    recent_ledger: view.recent_ledger
+  };
+}
+
 module.exports = {
   SERVER_INSTANCE_ID,
   ensureDefaultLogo,
   getSettingsRow,
+  getTreasuryConfigRow,
+  getTreasuryView,
   getPublicConfig,
   calculateEndpoint,
   ensureWalletInTx,
@@ -1586,6 +2368,9 @@ module.exports = {
   reviewWithdrawal,
   createAccountTransfer,
   updateSettings,
+  updateTreasurySettings,
   updateLogo,
-  getClusterSchedulerStatus
+  getClusterSchedulerStatus,
+  searchProtocol,
+  inspectUserProtocol
 };

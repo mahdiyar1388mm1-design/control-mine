@@ -2,74 +2,125 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { formatMoney } from '../lib/format';
+import { useAuth } from '../context/AuthContext';
 import { EmptyState, ErrorState, LoadingState, ProductImage } from '../components/StateViews';
 import { LthTopBar } from '../components/LthTopBar';
+import { LthWalletCard } from '../components/LthWalletCard';
 
 export function HomePage() {
+  const { user } = useAuth();
   const navigate = useNavigate();
-  const [searchQ, setSearchQ] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [products, setProducts] = useState([]);
   const [services, setServices] = useState([]);
+  const [lthConfig, setLthConfig] = useState(null);
+  const [walletData, setWalletData] = useState(null);
+  const [treasury, setTreasury] = useState(null);
 
   const loadHome = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [pRes, sRes] = await Promise.all([
+      const requests = [
         apiFetch('/products?limit=4&sort=newest'),
-        apiFetch('/services?limit=4')
-      ]);
+        apiFetch('/services?limit=4'),
+        apiFetch('/lth/config'),
+        apiFetch('/lth/treasury')
+      ];
+      if (user) {
+        requests.push(apiFetch('/lth/wallet').catch(() => null));
+      }
+      const [pRes, sRes, cRes, tRes, wRes] = await Promise.all(requests);
       setProducts(pRes.items || []);
       setServices(sRes.items || []);
+      setLthConfig(cRes.config || null);
+      setTreasury(tRes.treasury || null);
+      setWalletData(wRes?.wallet || null);
     } catch (err) {
       setError(err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     loadHome();
   }, [loadHome]);
 
-  const onSearchSubmit = (e) => {
-    e.preventDefault();
-    const q = searchQ.trim();
-    navigate(q ? `/shop?q=${encodeURIComponent(q)}` : '/shop');
+  const goWalletAction = (panel) => {
+    if (!user) {
+      navigate(`/auth?next=${encodeURIComponent(panel ? `/wallet?panel=${panel}` : '/wallet')}`);
+      return;
+    }
+    navigate(panel ? `/wallet?panel=${panel}` : '/wallet');
   };
 
   return (
     <div>
-      <LthTopBar />
+      {/* 1. Top Hero Zone: Separate LTH / IRR Ticker + Pink Wallet Card + Quick Protocol Actions */}
+      <div className="lth-shell" style={{ marginBottom: 26 }}>
+        <LthTopBar config={lthConfig} />
 
-      <section className="card" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', color: '#f8fafc', padding: '28px 24px', marginBottom: 24 }}>
-        <h1 style={{ margin: '0 0 8px', fontSize: '1.65rem', fontWeight: 800 }}>
-          فروشگاه تخصصی تجهیزات صنعتی و خدمات فنی آنلاین
-        </h1>
-        <p style={{ margin: '0 0 18px', color: '#cbd5e1', maxWidth: 680 }}>
-          خرید مستقیم ابزار اندازه‌گیری، ایمنی و تغذیهٔ صنعتی همراه با ثبت و پیگیری برخط خدمات کالیبراسیون، عیب‌یابی و تعمیرات تخصصی با کد رهگیری و SLA مشخص.
-        </p>
+        <LthWalletCard
+          wallet={user ? walletData : null}
+          config={lthConfig}
+          onSelectSheba={() => goWalletAction('sheba')}
+        />
 
-        <form onSubmit={onSearchSubmit} className="flex-gap" style={{ maxWidth: 560, marginBottom: 16 }}>
-          <input
-            type="search"
-            className="input"
-            style={{ flex: 1 }}
-            placeholder="جست‌وجوی نام کالا، مدل یا برند (مثلاً مولتی‌متر یا کلاه ایمنی)..."
-            aria-label="جست‌وجوی کالا"
-            value={searchQ}
-            onChange={(e) => setSearchQ(e.target.value)}
+        {!user && (
+          <div className="muted" style={{ textAlign: 'center', fontSize: '0.82rem', marginBottom: 10 }}>
+            برای مشاهدهٔ موجودی واقعی کیف پول و قراردادهای هوشمند خود <Link to="/auth?next=/wallet"><strong>وارد حساب شوید</strong></Link>.
+          </div>
+        )}
+
+        <button
+          type="button"
+          className="lth-outline-btn pink-text"
+          onClick={() => goWalletAction('sell')}
+        >
+          فروش
+        </button>
+
+        <button
+          type="button"
+          className="lth-outline-btn"
+          onClick={() => goWalletAction('contracts')}
+        >
+          قرارداد هوشمند (PoS)
+        </button>
+
+        <div className="grid grid-2" style={{ gap: 10 }}>
+          <Link to="/treasury" className="lth-filled-btn" style={{ marginBottom: 0 }}>
+            🏛️ خزانه پروتکل ({treasury ? `LTH ${treasury.asset_lth_headline}` : '15.000.000 LTH'})
+          </Link>
+          <Link to="/lth-calculator" className="lth-outline-btn pink-text" style={{ marginBottom: 0 }}>
+            🧮 خرید پکیج و محاسبه‌گر
+          </Link>
+        </div>
+      </div>
+
+      {/* 2. Official CENTRAL MINE Brand & Ecosystem Showcase */}
+      <section className="card cm-home-brand-card" style={{ marginBottom: 26 }}>
+        <div className="cm-home-brand-grid">
+          <img
+            src="/central-mine-logo.jpg"
+            alt="لوگوی رسمی CENTRAL MINE"
+            className="cm-home-brand-img"
           />
-          <button type="submit" className="btn btn-primary">جست‌وجو</button>
-        </form>
-
-        <div className="flex-gap">
-          <Link to="/wallet" className="btn btn-primary" style={{ background: '#ec1e79' }}>🪙 کیف پول ماین (LTH)</Link>
-          <Link to="/lth-calculator" className="btn btn-secondary">🧮 محاسبه‌گر و پکیج LTH</Link>
-          <Link to="/shop" className="btn btn-primary">مشاهدهٔ همهٔ کالاها</Link>
-          <Link to="/services" className="btn btn-secondary">ثبت درخواست خدمت فنی</Link>
+          <div>
+            <h1 style={{ margin: '0 0 8px', fontSize: '1.45rem', fontWeight: 900, color: '#0f172a' }}>
+              CENTRAL MINE — اکوسیستم یکپارچهٔ ماین، فروشگاه تجهیزات صنعتی و خدمات فنی آنلاین
+            </h1>
+            <p style={{ margin: '0 0 14px', color: '#475569', lineHeight: 1.75 }}>
+              ترکیب کیف پول و خزانهٔ شفاف <strong>LOTH COIN (LTH)</strong> با قرارداد هوشمند اثبات سهام (PoS)، در کنار تأمین مستقیم تجهیزات صنعتی و خدمات کالیبراسیون و تعمیرات با کد رهگیری و SLA مشخص.
+            </p>
+            <div className="flex-gap">
+              <Link to="/shop" className="btn btn-primary" style={{ background: '#ec1e79' }}>🛍️ ورود به فروشگاه کالا</Link>
+              <Link to="/services" className="btn btn-secondary">⚙️ ثبت درخواست خدمت فنی</Link>
+              <Link to="/treasury" className="btn btn-secondary">🏛️ بررسی خزانهٔ پروتکل</Link>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -118,18 +169,21 @@ export function HomePage() {
             ) : (
               <div className="grid grid-2">
                 {services.map((s) => (
-                  <article key={s.id} className="card" style={{ marginBottom: 0 }}>
-                    <div className="flex-between" style={{ marginBottom: 6 }}>
-                      <span className="badge badge-info">⚙️ {s.category?.name || 'خدمت تخصصی'}</span>
-                      <span className="badge badge-neutral">⏱️ تعهد SLA: {s.sla_hours.toLocaleString('fa-IR')} ساعت</span>
+                  <article key={s.id} className="card" style={{ marginBottom: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div>
+                      <div className="flex-between" style={{ marginBottom: 6 }}>
+                        <span className="badge badge-info">{s.category || 'خدمات تخصصی'}</span>
+                        <span className="muted" style={{ fontSize: '0.8rem' }}>SLA هدف: {s.sla_hours.toLocaleString('fa-IR')} ساعت</span>
+                      </div>
+                      <h3 style={{ margin: '0 0 6px', fontSize: '1.08rem' }}>{s.title}</h3>
+                      <p className="muted" style={{ margin: '0 0 12px', fontSize: '0.9rem' }}>{s.summary}</p>
                     </div>
-                    <h3 style={{ margin: '8px 0 6px', fontSize: '1.06rem' }}>{s.name}</h3>
-                    <p className="muted" style={{ margin: '0 0 12px', fontSize: '0.9rem' }}>{s.description}</p>
-                    <div className="flex-between">
-                      <strong>تعرفه: {formatMoney(s.price_toman, { freeLabel: true })}</strong>
-                      <Link to={`/services/${s.slug}`} className="btn btn-primary btn-sm">
-                        مشاهدهٔ شرایط و ثبت درخواست
-                      </Link>
+                    <div className="flex-between" style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 12 }}>
+                      <div>
+                        <span className="muted" style={{ fontSize: '0.8rem', display: 'block' }}>هزینهٔ پایهٔ بررسی</span>
+                        <strong style={{ color: 'var(--primary)' }}>{formatMoney(s.base_price_toman)}</strong>
+                      </div>
+                      <Link to={`/services/${s.slug}`} className="btn btn-primary btn-sm">ثبت درخواست ←</Link>
                     </div>
                   </article>
                 ))}

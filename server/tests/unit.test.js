@@ -76,16 +76,17 @@ test('unit: scenario #20 — versioned migration, rollback, and AES-256-GCM encr
   assert.equal(bkp.encrypted, true);
   assert.ok(bkp.path.endsWith('.enc'));
 
-  // Rollback migrations 002_lth_wallet + 001_init and re-apply cleanly
-  const rolled = rollback(2);
-  assert.deepEqual(rolled, ['002_lth_wallet', '001_init']);
-  const tablesAfterDown = get("SELECT COUNT(*) AS c FROM sqlite_master WHERE type='table' AND name IN ('orders','lth_wallets')").c;
+  // Rollback migrations 003_lth_treasury_protocol + 002_lth_wallet + 001_init and re-apply cleanly
+  const rolled = rollback(3);
+  assert.deepEqual(rolled, ['003_lth_treasury_protocol', '002_lth_wallet', '001_init']);
+  const tablesAfterDown = get("SELECT COUNT(*) AS c FROM sqlite_master WHERE type='table' AND name IN ('orders','lth_wallets','lth_treasury_config')").c;
   assert.equal(tablesAfterDown, 0);
 
   // Re-migrate and verify clean schema
   migrate();
   assert.equal(get("SELECT COUNT(*) AS c FROM sqlite_master WHERE type='table' AND name='orders'").c, 1);
   assert.equal(get("SELECT COUNT(*) AS c FROM sqlite_master WHERE type='table' AND name='lth_wallets'").c, 1);
+  assert.equal(get("SELECT COUNT(*) AS c FROM sqlite_master WHERE type='table' AND name='lth_treasury_config'").c, 1);
 
   // Verify encrypted backup restores canary row into a separate DB file
   const restoredDbFile = path.join(tmpRoot, 'restored.db');
@@ -129,4 +130,9 @@ test('unit: LTH exact BigInt calculation engine (0.000000000001 LTH = 0.00484 IR
   assert.equal(split71.stakedAtoms + split71.withdrawableAtoms, split71.totalRewardAtoms);
   assert.equal(lthMath.formatAtomsCompact(split71.stakedAtoms), '0.00000000002414');
   assert.equal(lthMath.formatAtomsCompact(split71.withdrawableAtoms), '0.00000000000986');
+
+  // 5) Smart 8-to-12 decimal formatting (0 -> 0.00000000, sub-10^-8 -> up to 12 digits)
+  assert.equal(lthMath.formatAtomsDisplay12(0n), '0.00000000');
+  const sampleBase = lthMath.parseLthToAtoms('0.003088636363');
+  assert.equal(lthMath.formatAtomsDisplay12(sampleBase), '0.003088636363');
 });

@@ -5,6 +5,7 @@ import { addCommas } from '../lib/lthMath';
 import { formatDateTime, formatMoney } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
 import { LthTopBar } from '../components/LthTopBar';
+import { LthWalletCard } from '../components/LthWalletCard';
 import { EmptyState, ErrorState, FieldErrorsList, LoadingState, StatusBadge } from '../components/StateViews';
 
 export function LthWalletPage() {
@@ -194,126 +195,15 @@ export function LthWalletPage() {
       {/* 1. Separate Top LTH / IRR Ticker Bar ("نوار بالا باید جدا از کیف پول است و بعد از لمس آن به صفحه زیر منتقل میشویم") */}
       <LthTopBar config={cfg} />
 
-      {/* 2. Pink LTH Wallet Card with all 7 Titles */}
-      <section className="lth-wallet-card" aria-label="کیف پول LTH و ۷ عنوان موجودی">
-        <div className="lth-wallet-watermark" aria-hidden="true">LTH</div>
-
-        <div className="lth-wallet-dots-row">
-          <div className="lth-wallet-dots">
-            {showFullSerial ? w.wallet_serial : '••••  ••••  ••••  ••••'}
-          </div>
-          <div className="flex-gap">
-            <button
-              type="button"
-              className="lth-serial-btn"
-              onClick={() => setShowFullSerial((v) => !v)}
-            >
-              {showFullSerial ? 'مخفی‌کردن شناسه' : 'شناسه کیف پول'}
-            </button>
-            <button
-              type="button"
-              className="lth-serial-btn"
-              onClick={() => setShowExactDigits((v) => !v)}
-            >
-              {showExactDigits ? 'نمایش ۸ رقم استاندارد' : 'نمایش ریز محاسباتی'}
-            </button>
-          </div>
-        </div>
-
-        <div className="lth-wallet-rows">
-          {/* Row 1: حجم پایه */}
-          <div className="lth-wallet-row">
-            <div>
-              <div className="lth-row-title">حجم پایه</div>
-              <div className="lth-row-sub">فقط خریدهای اولیه</div>
-            </div>
-            <div className="lth-row-val">LTH {fmtLth(w.base_lth_display_8, w.base_lth_exact)}</div>
-          </div>
-
-          {/* Row 2: استیک */}
-          <div className="lth-wallet-row">
-            <div>
-              <div className="lth-row-title">استیک</div>
-              <div className="lth-row-sub">{cfg.stake_percent}٪ پاداش (قابل برداشت {cfg.lockup_days.toLocaleString('fa-IR')} روز پس از خرید)</div>
-            </div>
-            <div className="lth-row-val">LTH {fmtLth(w.staked_lth_display_8, w.staked_lth_exact)}</div>
-          </div>
-
-          {/* Row 3: حجم پاداش قابل برداشت LTH */}
-          <div className="lth-wallet-row">
-            <div>
-              <div className="lth-row-title">حجم پاداش قابل برداشت LTH</div>
-              <div className="lth-row-sub">{cfg.withdrawable_percent}٪ از حجم پاداش دریافتی</div>
-            </div>
-            <div className="lth-row-val">LTH {fmtLth(w.withdrawable_reward_lth_display_8, w.withdrawable_reward_lth_exact)}</div>
-          </div>
-
-          {/* Row 4: جمع ال تی اچ قابل برداشت */}
-          <div className="lth-wallet-row">
-            <div>
-              <div className="lth-row-title">جمع ال تی اچ قابل برداشت</div>
-              <div className="lth-row-sub">حجم پایه + {cfg.withdrawable_percent}٪ پاداش دریافتی</div>
-            </div>
-            <div className="lth-row-val">LTH {fmtLth(w.total_withdrawable_lth_display_8, w.total_withdrawable_lth_exact)}</div>
-          </div>
-
-          {/* Row 5: قابل برداشت (به ریال) + دکمه برداشت شبا */}
-          <div className="lth-wallet-row">
-            <div className="lth-row-title-group">
-              <div>
-                <div className="lth-row-title">قابل برداشت</div>
-                <div className="lth-row-sub">پایه به ریال + {cfg.withdrawable_percent}٪ پاداش به ریال</div>
-              </div>
-              <button
-                type="button"
-                className="lth-sheba-pill"
-                onClick={() => selectPanel('sheba')}
-              >
-                برداشت شبا
-              </button>
-            </div>
-            <div className="lth-row-val" dir="rtl">
-              <span className="mono">{showExactDigits ? addCommas(w.withdrawable_irr_exact) : w.withdrawable_irr_formatted}</span> ریال
-            </div>
-          </div>
-
-          {/* Row 6: جمع ریال */}
-          <div className="lth-wallet-row">
-            <div>
-              <div className="lth-row-title">جمع ریال</div>
-              <div className="lth-row-sub">جمع پایه و کل پاداش</div>
-            </div>
-            <div className="lth-row-val" dir="rtl">
-              <span className="mono">{showExactDigits ? addCommas(w.total_irr_exact) : w.total_irr_formatted}</span> ریال
-            </div>
-          </div>
-
-          {/* Row 7: جمع ال تی اچ */}
-          <div className="lth-wallet-row">
-            <div>
-              <div className="lth-row-title">جمع ال تی اچ</div>
-              <div className="lth-row-sub">جمع کل LTH در کیف پول</div>
-            </div>
-            <div className="lth-row-val">LTH {fmtLth(w.total_lth_display_8, w.total_lth_exact)}</div>
-          </div>
-
-          {/* Optional transparency row when user has pending Sheba settlement */}
-          {w.reserved_atoms !== '0' && (
-            <div className="lth-wallet-row" style={{ background: 'rgba(0,0,0,0.14)', borderRadius: 10, padding: '8px 10px', marginTop: 6 }}>
-              <div>
-                <div className="lth-row-title">در انتظار تسویهٔ شبا</div>
-                <div className="lth-row-sub">رزروشده جهت بررسی واحد مالی</div>
-              </div>
-              <div className="lth-row-val" dir="rtl">
-                <span className="mono">{w.reserved_irr_formatted}</span> ریال
-              </div>
-            </div>
-          )}
-        </div>
-      </section>
+      {/* 2. Pink LTH Wallet Card with all 7 Titles + Eye Visibility Toggle + 12-Decimal Formatting */}
+      <LthWalletCard
+        wallet={w}
+        config={cfg}
+        onSelectSheba={() => selectPanel('sheba')}
+      />
 
       <div className="muted" style={{ fontSize: '0.8rem', textAlign: 'center', marginBottom: 12 }}>
-        ℹ️ {cfg.phase_notes?.tmn_and_toman_wallet_rows}
+        ℹ️ {cfg.phase_notes?.tmn_and_toman_wallet_rows} • <Link to="/treasury"><strong>مشاهدهٔ وضعیت خزانهٔ پروتکل ←</strong></Link>
       </div>
 
       {/* 3. Action Buttons below Wallet (فروش / قرارداد هوشمند / حساب به حساب / خرید پکیج) */}
