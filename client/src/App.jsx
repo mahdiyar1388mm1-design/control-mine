@@ -10,6 +10,7 @@ import { OrderDetailPage, OrdersListPage } from './pages/OrdersPage';
 import { TicketDetailPage, TicketsListPage } from './pages/SupportPage';
 import { AccountDashboardPage, AuthPage, NotificationsPage, ProfileAddressesPage } from './pages/AccountPage';
 import { LthWalletPage } from './pages/LthWalletPage';
+import { LthSmartContractPage } from './pages/LthSmartContractPage';
 import { LthCalculatorPage } from './pages/LthCalculatorPage';
 import { StaffWorkspacePage } from './pages/staff/StaffWorkspacePage';
 
@@ -64,7 +65,7 @@ export default function App() {
               <Route path="/wallet" element={<LthWalletPage />} />
               <Route path="/wallet/sell" element={<LthWalletPage />} />
               <Route path="/wallet/sheba" element={<LthWalletPage />} />
-              <Route path="/wallet/contracts" element={<LthWalletPage />} />
+              <Route path="/wallet/contracts" element={<LthSmartContractPage />} />
               <Route path="/wallet/p2p" element={<LthWalletPage />} />
               <Route path="/treasury" element={<Navigate to="/staff" replace />} />
               <Route path="/lth-calculator" element={<LthCalculatorPage />} />
