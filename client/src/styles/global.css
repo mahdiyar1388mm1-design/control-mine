@@ -1104,6 +1104,12 @@ body:has(.auth-shell) {
 .auth-otp-actions { display: grid; gap: 14px; justify-items: center; }
 .auth-back-to-login { justify-self: center; }
 .auth-otp-prompt { margin-top: 16px; padding-top: 16px; }
+.auth-install-area { display: grid; justify-items: center; gap: 9px; margin-top: 22px; }
+.auth-install-button { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 44px; padding: 8px 17px; border: 1px solid #dce3ee; border-radius: 12px; background: #fff; color: #334155; font: inherit; font-size: .86rem; font-weight: 800; cursor: pointer; transition: background .15s, border-color .15s; }
+.auth-install-button:hover:not(:disabled) { border-color: #aab7c9; background: #f8fafc; }
+.auth-install-button:disabled { color: #64748b; cursor: default; }
+.auth-install-icon { font-size: 1.1rem; line-height: 1; }
+.auth-install-help { max-width: 390px; margin: 0; color: #64748b; text-align: center; font-size: .76rem; line-height: 1.8; }
 .auth-text-link { border: 0; padding: 0; background: none; color: #ed2189; font: inherit; font-weight: 800; cursor: pointer; }
 .auth-text-link:hover { text-decoration: underline; }
 .auth-forgot { justify-self: start; margin-top: 9px; font-size: .88rem; }
@@ -1129,7 +1135,8 @@ body:has(.auth-shell) {
   .auth-input-wrap { min-height: 58px; }
   .auth-submit { min-height: 60px; }
   .auth-signup-prompt { margin-top: 22px; padding-top: 20px; }
-  .auth-security-note { margin-top: 28px; }
+  .auth-install-area { margin-top: 18px; }
+  .auth-security-note { margin-top: 24px; }
 }
 
 /* Eye Mask Button on Wallet & Treasury Cards */

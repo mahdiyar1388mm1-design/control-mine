@@ -22,12 +22,52 @@ export function AuthPage() {
   const [sandboxHint, setSandboxHint] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [installAvailable, setInstallAvailable] = useState(Boolean(window.__cmInstallPrompt));
+  const [installHelp, setInstallHelp] = useState(false);
+  const [installing, setInstalling] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(
+    window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true
+  );
 
   useEffect(() => {
     if (user) {
       navigate(nextUrl, { replace: true });
     }
   }, [user, navigate, nextUrl]);
+
+  useEffect(() => {
+    const updateInstallAvailability = () => setInstallAvailable(Boolean(window.__cmInstallPrompt));
+    const markInstalled = () => {
+      setIsInstalled(true);
+      setInstallAvailable(false);
+      setInstallHelp(false);
+    };
+    window.addEventListener('cm-install-available', updateInstallAvailability);
+    window.addEventListener('appinstalled', markInstalled);
+    return () => {
+      window.removeEventListener('cm-install-available', updateInstallAvailability);
+      window.removeEventListener('appinstalled', markInstalled);
+    };
+  }, []);
+
+  const handleInstallApp = async () => {
+    const prompt = window.__cmInstallPrompt;
+    if (!prompt) {
+      setInstallHelp((shown) => !shown);
+      return;
+    }
+    setInstalling(true);
+    try {
+      await prompt.prompt();
+      await prompt.userChoice;
+    } catch {
+      setInstallHelp(true);
+    } finally {
+      window.__cmInstallPrompt = null;
+      setInstallAvailable(false);
+      setInstalling(false);
+    }
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -188,6 +228,17 @@ export function AuthPage() {
               <button type="button" className="auth-text-link" onClick={() => setAuthMode('register')}>حساب ندارید؟ ثبت‌نام کنید</button>
             </div>
           )}
+          <div className="auth-install-area">
+            <button type="button" className="auth-install-button" onClick={handleInstallApp} disabled={installing || isInstalled}>
+              <span className="auth-install-icon" aria-hidden="true">↓</span>
+              <span>{isInstalled ? 'اپلیکیشن نصب شده است' : installing ? 'در حال باز کردن نصب...' : 'نصب اپلیکیشن'}</span>
+            </button>
+            {installHelp && !isInstalled && (
+              <p className="auth-install-help" role="status">
+                برای نصب، در منوی مرورگر گزینهٔ «افزودن به صفحهٔ اصلی» را انتخاب کنید. در iPhone از دکمهٔ Share و سپس «Add to Home Screen» استفاده کنید.
+              </p>
+            )}
+          </div>
           <p className="auth-security-note"><span aria-hidden="true">♢</span> امنیت اطلاعات شما برای ما اهمیت دارد</p>
         </div>
 
