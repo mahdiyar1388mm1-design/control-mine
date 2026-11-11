@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { formatMoney } from '../lib/format';
@@ -8,12 +8,28 @@ import { LthTopBar } from '../components/LthTopBar';
 import { LthWalletCard } from '../components/LthWalletCard';
 import { Icon } from '../components/Icon';
 
+function getBrandInitials(name) {
+  return String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => Array.from(part)[0])
+    .join('')
+    .toLocaleUpperCase('fa-IR') || 'BR';
+}
+
 export function HomePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [products, setProducts] = useState([]);
+  const [brands, setBrands] = useState([]);
+  const [selectedBrand, setSelectedBrand] = useState('');
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [productsError, setProductsError] = useState(null);
+  const brandRequestIdRef = useRef(0);
   const [lthConfig, setLthConfig] = useState(null);
   const [walletData, setWalletData] = useState(null);
   const [treasury, setTreasury] = useState(null);
@@ -24,14 +40,16 @@ export function HomePage() {
     try {
       const requests = [
         apiFetch('/products?limit=100&sort=newest'),
+        apiFetch('/brands'),
         apiFetch('/lth/config'),
         apiFetch('/lth/treasury')
       ];
       if (user) {
         requests.push(apiFetch('/lth/wallet').catch(() => null));
       }
-      const [pRes, cRes, tRes, wRes] = await Promise.all(requests);
+      const [pRes, bRes, cRes, tRes, wRes] = await Promise.all(requests);
       setProducts(pRes.items || []);
+      setBrands(bRes.items || []);
       setLthConfig(cRes.config || null);
       setTreasury(tRes.treasury || null);
       setWalletData(wRes?.wallet || null);
@@ -51,6 +69,27 @@ export function HomePage() {
       document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [loading]);
+
+  const loadProductsForBrand = useCallback(async (brandSlug = selectedBrand) => {
+    const requestId = ++brandRequestIdRef.current;
+    setProductsLoading(true);
+    setProductsError(null);
+    try {
+      const query = new URLSearchParams({ limit: '100', sort: 'newest' });
+      if (brandSlug) query.set('brand', brandSlug);
+      const response = await apiFetch(`/products?${query.toString()}`);
+      if (requestId === brandRequestIdRef.current) setProducts(response.items || []);
+    } catch (err) {
+      if (requestId === brandRequestIdRef.current) setProductsError(err);
+    } finally {
+      if (requestId === brandRequestIdRef.current) setProductsLoading(false);
+    }
+  }, [selectedBrand]);
+
+  const handleBrandSelect = (brandSlug) => {
+    setSelectedBrand(brandSlug);
+    loadProductsForBrand(brandSlug);
+  };
 
   const goWalletAction = (panel) => {
     if (!user) {
@@ -113,9 +152,51 @@ export function HomePage() {
             <div className="flex-between" style={{ marginBottom: 12 }}>
               <h2 style={{ margin: 0, fontSize: '1.25rem' }}>محصولات فروشگاه</h2>
             </div>
-            {products.length === 0 ? (
-              <EmptyState title="هنوز کالایی ثبت نشده است" />
-            ) : (
+
+            {brands.length > 0 && (
+              <div className="home-brand-filter" role="group" aria-label="فیلتر محصولات بر اساس برند">
+                <button
+                  type="button"
+                  className={`home-brand-chip${selectedBrand === '' ? ' active' : ''}`}
+                  aria-pressed={selectedBrand === ''}
+                  onClick={() => handleBrandSelect('')}
+                >
+                  <span className="home-brand-mark" aria-hidden="true">
+                    <Icon name="bag" size={22} color="currentColor" />
+                  </span>
+                  <span className="home-brand-name">همهٔ برندها</span>
+                </button>
+                {brands.map((brand) => (
+                  <button
+                    key={brand.id}
+                    type="button"
+                    className={`home-brand-chip${selectedBrand === brand.slug ? ' active' : ''}`}
+                    aria-pressed={selectedBrand === brand.slug}
+                    onClick={() => handleBrandSelect(brand.slug)}
+                    title={`نمایش محصولات ${brand.name}`}
+                  >
+                    <span className="home-brand-mark" aria-hidden="true">{getBrandInitials(brand.name)}</span>
+                    <span className="home-brand-name">{brand.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {productsLoading && <LoadingState label="در حال بارگذاری محصولات برند..." />}
+            {!productsLoading && productsError && (
+              <ErrorState error={productsError} onRetry={() => loadProductsForBrand(selectedBrand)} />
+            )}
+            {!productsLoading && !productsError && products.length === 0 && (
+              selectedBrand ? (
+                <EmptyState
+                  title="برای این برند محصولی پیدا نشد"
+                  description="برند دیگری را انتخاب کنید یا همهٔ محصولات را ببینید."
+                  actionLabel="نمایش همهٔ محصولات"
+                  onAction={() => handleBrandSelect('')}
+                />
+              ) : <EmptyState title="هنوز کالایی ثبت نشده است" />
+            )}
+            {!productsLoading && !productsError && products.length > 0 && (
               <div className="grid grid-4">
                 {products.map((p) => (
                   <article key={p.id} className="product-card">
