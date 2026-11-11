@@ -62,7 +62,7 @@ export function HomePage() {
 
   return (
     <div>
-      {/* 1. Top Hero Zone: Separate LTH / IRR Ticker + Pink Wallet Card + Quick Protocol Actions */}
+      {/* Top Hero Zone: Separate LTH / IRR Ticker + Pink Wallet Card + Quick Protocol Actions */}
       <div className="lth-shell" style={{ marginBottom: 26 }}>
         <LthTopBar config={lthConfig} />
 
@@ -103,29 +103,6 @@ export function HomePage() {
           </Link>
         </div>
       </div>
-
-      {/* 2. Official CENTRAL MINE Brand & Ecosystem Showcase */}
-      <section className="card cm-home-brand-card" style={{ marginBottom: 26 }}>
-        <div className="cm-home-brand-grid">
-          <img
-            src="/central-mine-logo.svg"
-            alt="لوگوی رسمی CENTRAL MINE"
-            className="cm-home-brand-img"
-          />
-          <div>
-            <h1 style={{ margin: '0 0 8px', fontSize: '1.45rem', fontWeight: 900, color: '#0f172a' }}>
-              CENTRAL MINE — فروشگاه تجهیزات صنعتی و سامانهٔ کیف پول LTH
-            </h1>
-            <p style={{ margin: '0 0 14px', color: '#475569', lineHeight: 1.75 }}>
-              محصولات و تجهیزات را در فروشگاه ببینید و کیف پول و خزانهٔ شفاف <strong>LOTH COIN (LTH)</strong> را با قرارداد هوشمند اثبات سهام (PoS) مدیریت کنید.
-            </p>
-            <div className="flex-gap">
-              <Link to="/#products" className="btn btn-primary" style={{ background: '#ec1e79' }}><Icon name="bag" color="currentColor" /> دیدن محصولات</Link>
-              <Link to="/treasury" className="btn btn-secondary"><Icon name="landmark" /> بررسی خزانهٔ پروتکل</Link>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {loading && <LoadingState label="در حال بارگذاری محصولات..." />}
       {!loading && error && <ErrorState error={error} onRetry={loadHome} />}
