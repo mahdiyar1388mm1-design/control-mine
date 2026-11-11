@@ -1,3 +1,5 @@
+import { formatPersianDigits } from './format';
+
 /**
  * Exact BigInt Fixed-Point Client Math for LOTH COIN (LTH) & IRR.
  * Mirrors server/src/modules/lth/math.js so bidirectional calculator inputs
@@ -56,17 +58,19 @@ export function formatScaledBigInt(val, scaleDecimals, { minDecimals = 0, maxDec
 }
 
 export function addCommas(numStr) {
-  if (numStr === null || numStr === undefined || numStr === '') return '0';
+  if (numStr === null || numStr === undefined || numStr === '') return '۰';
   const [w, f] = String(numStr).split('.');
   const formattedWhole = w.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return f !== undefined && f !== '' ? `${formattedWhole}.${f}` : formattedWhole;
+  const formatted = f !== undefined && f !== '' ? `${formattedWhole}.${f}` : formattedWhole;
+  return formatPersianDigits(formatted);
 }
 
 export function formatDotGrouped(numStr) {
-  if (numStr === null || numStr === undefined || numStr === '') return '0';
+  if (numStr === null || numStr === undefined || numStr === '') return '۰';
   const [w, f] = String(numStr).split('.');
   const formattedWhole = w.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  return f !== undefined && f !== '' ? `${formattedWhole}.${f}` : formattedWhole;
+  const formatted = f !== undefined && f !== '' ? `${formattedWhole}.${f}` : formattedWhole;
+  return formatPersianDigits(formatted);
 }
 
 export function computeLocalMetrics({ mode, rawValue, config }) {

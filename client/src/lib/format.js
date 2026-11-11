@@ -5,6 +5,11 @@
  * - API ISO-8601 timestamps are formatted in Persian calendar (fa-IR) with local timezone.
  */
 
+export function formatPersianDigits(value) {
+  if (value === null || value === undefined) return value;
+  return String(value).replace(/[0-9]/g, (digit) => String.fromCharCode(0x06f0 + Number(digit)));
+}
+
 export function formatMoney(amount, { freeLabel = false } = {}) {
   if (amount === null || amount === undefined || amount === '') {
     return 'نامشخص';
@@ -16,14 +21,14 @@ export function formatMoney(amount, { freeLabel = false } = {}) {
   if (num === 0 && freeLabel) {
     return 'رایگان (۰ تومان)';
   }
-  return `${Math.trunc(num).toLocaleString('fa-IR')} تومان`;
+  return `${formatPersianDigits(Math.trunc(num).toLocaleString('fa-IR'))} تومان`;
 }
 
 export function formatNumber(value) {
   if (value === null || value === undefined || value === '') return 'نامشخص';
   const num = Number(value);
   if (!Number.isFinite(num)) return 'نامشخص';
-  return num.toLocaleString('fa-IR');
+  return formatPersianDigits(num.toLocaleString('fa-IR'));
 }
 
 const dtFormatter = new Intl.DateTimeFormat('fa-IR-u-ca-persian', {

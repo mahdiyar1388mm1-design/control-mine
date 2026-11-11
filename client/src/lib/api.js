@@ -1,3 +1,5 @@
+import { formatPersianDigits } from './format';
+
 /**
  * Central API client (§1.3, §5, §14, §16):
  * - Always uses relative /api/v1 paths (never localhost).
@@ -6,6 +8,21 @@
  */
 
 const TOKEN_KEY = 'cm_session_token';
+const FORMATTED_CURRENCY_KEY = /(?:irr|toman).*formatted|formatted.*(?:irr|toman)/i;
+
+function localizeFormattedCurrency(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => localizeFormattedCurrency(item));
+  }
+  if (!value || typeof value !== 'object') return value;
+
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [
+    key,
+    FORMATTED_CURRENCY_KEY.test(key) && typeof item === 'string'
+      ? formatPersianDigits(item)
+      : localizeFormattedCurrency(item)
+  ]));
+}
 
 export function getStoredToken() {
   try {
@@ -106,7 +123,7 @@ export async function apiFetch(path, { method = 'GET', body, headers = {}, idemp
     });
   }
 
-  return parsed;
+  return localizeFormattedCurrency(parsed);
 }
 
 export async function downloadPrivateFile(fileId, fallbackName = 'document') {
