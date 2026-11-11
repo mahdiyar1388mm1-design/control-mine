@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { EmptyState, ErrorState, LoadingState, ProductImage } from '../components/StateViews';
 import { LthTopBar } from '../components/LthTopBar';
 import { LthWalletCard } from '../components/LthWalletCard';
+import { Icon } from '../components/Icon';
 
 export function HomePage() {
   const { user } = useAuth();
@@ -95,10 +96,10 @@ export function HomePage() {
 
         <div className="grid grid-2" style={{ gap: 10 }}>
           <Link to="/treasury" className="lth-filled-btn" style={{ marginBottom: 0 }}>
-            🏛️ خزانه پروتکل ({treasury ? `LTH ${treasury.asset_lth_headline}` : '15.000.000 LTH'})
+            <Icon name="landmark" color="currentColor" /> خزانه پروتکل ({treasury ? `LTH ${treasury.asset_lth_headline}` : '15.000.000 LTH'})
           </Link>
           <Link to="/lth-calculator" className="lth-outline-btn pink-text" style={{ marginBottom: 0 }}>
-            🧮 خرید پکیج و محاسبه‌گر
+            <Icon name="calculator" /> خرید پکیج و محاسبه‌گر
           </Link>
         </div>
       </div>
@@ -107,7 +108,7 @@ export function HomePage() {
       <section className="card cm-home-brand-card" style={{ marginBottom: 26 }}>
         <div className="cm-home-brand-grid">
           <img
-            src="/central-mine-logo.jpg"
+            src="/central-mine-logo.svg"
             alt="لوگوی رسمی CENTRAL MINE"
             className="cm-home-brand-img"
           />
@@ -119,8 +120,8 @@ export function HomePage() {
               محصولات و تجهیزات را در فروشگاه ببینید و کیف پول و خزانهٔ شفاف <strong>LOTH COIN (LTH)</strong> را با قرارداد هوشمند اثبات سهام (PoS) مدیریت کنید.
             </p>
             <div className="flex-gap">
-              <Link to="/#products" className="btn btn-primary" style={{ background: '#ec1e79' }}>🛍️ دیدن محصولات</Link>
-              <Link to="/treasury" className="btn btn-secondary">🏛️ بررسی خزانهٔ پروتکل</Link>
+              <Link to="/#products" className="btn btn-primary" style={{ background: '#ec1e79' }}><Icon name="bag" color="currentColor" /> دیدن محصولات</Link>
+              <Link to="/treasury" className="btn btn-secondary"><Icon name="landmark" /> بررسی خزانهٔ پروتکل</Link>
             </div>
           </div>
         </div>
@@ -150,7 +151,8 @@ export function HomePage() {
                       <div className="product-price">
                         <span>{formatMoney(p.min_price_toman)}</span>
                         <span className={`badge ${p.total_stock > 0 ? 'badge-ok' : 'badge-danger'}`}>
-                          {p.total_stock > 0 ? `✓ موجود (${p.total_stock.toLocaleString('fa-IR')})` : '✕ ناموجود'}
+                          <Icon name={p.total_stock > 0 ? 'check' : 'x'} color="currentColor" size={14} />
+                          {p.total_stock > 0 ? `موجود (${p.total_stock.toLocaleString('fa-IR')})` : 'ناموجود'}
                         </span>
                       </div>
                     </div>

@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Icon } from './Icon';
 
 export function LoadingState({ label = 'در حال دریافت اطلاعات از سرور...' }) {
   return (
     <div className="state-box" role="status" aria-live="polite">
-      <strong>⏳ {label}</strong>
+      <strong><Icon name="clock" /> {label}</strong>
       <div className="muted" style={{ fontSize: '0.86rem', marginTop: 4 }}>
         لطفاً چند لحظه شکیبا باشید.
       </div>
@@ -15,7 +16,7 @@ export function LoadingState({ label = 'در حال دریافت اطلاعات 
 export function EmptyState({ title = 'موردی برای نمایش وجود ندارد', description, actionLabel, actionTo, onAction }) {
   return (
     <div className="state-box">
-      <div style={{ fontWeight: 800, fontSize: '1.02rem' }}>📭 {title}</div>
+      <div style={{ fontWeight: 800, fontSize: '1.02rem' }}><Icon name="inbox" /> {title}</div>
       {description && <p className="muted" style={{ margin: '6px 0 12px' }}>{description}</p>}
       {actionLabel && actionTo && (
         <Link to={actionTo} className="btn btn-primary btn-sm">{actionLabel}</Link>
@@ -35,25 +36,25 @@ export function ErrorState({ error, onRetry, title }) {
   const isServer = error.status >= 500 || error.code === 'INTERNAL' || error.code === 'SERVER_ERROR';
 
   let heading = title || 'خطا در انجام عملیات';
-  let symbol = '⚠️';
+  let icon = 'alert';
   if (isNetwork) {
     heading = 'خطای اتصال شبکه';
-    symbol = '📡';
+    icon = 'wifiOff';
   } else if (isUnauth) {
     heading = 'نیاز به ورود به حساب کاربری';
-    symbol = '🔐';
+    icon = 'lock';
   } else if (isForbidden) {
     heading = 'دسترسی غیرمجاز';
-    symbol = '⛔';
+    icon = 'ban';
   } else if (isServer) {
     heading = 'خطای داخلی سرور';
-    symbol = '🛠️';
+    icon = 'tools';
   }
 
   return (
     <div className="state-box error" role="alert">
       <div style={{ fontWeight: 800, fontSize: '1.02rem', color: 'var(--danger)' }}>
-        {symbol} {heading}
+        <Icon name={icon} /> {heading}
       </div>
       <p style={{ margin: '8px 0' }}>{error.message || 'پاسخ معتبری از سرور دریافت نشد.'}</p>
       {error.requestId && (
@@ -64,7 +65,7 @@ export function ErrorState({ error, onRetry, title }) {
       <div className="flex-gap">
         {onRetry && (
           <button type="button" className="btn btn-secondary btn-sm" onClick={onRetry}>
-            🔄 تلاش مجدد
+            <Icon name="refresh" size={16} /> تلاش مجدد
           </button>
         )}
         {isUnauth && (
@@ -93,44 +94,44 @@ export function FieldErrorsList({ details }) {
  */
 const STATUS_STYLE_MAP = {
   // Orders
-  pending_payment: { tone: 'warn', icon: '⏳', label: 'در انتظار پرداخت' },
-  paid: { tone: 'ok', icon: '✓', label: 'پرداخت‌شده' },
-  preparing: { tone: 'info', icon: '📦', label: 'در حال آماده‌سازی' },
-  shipped: { tone: 'info', icon: '🚚', label: 'ارسال‌شده' },
-  completed: { tone: 'ok', icon: '✔', label: 'تکمیل‌شده' },
-  canceled: { tone: 'danger', icon: '✕', label: 'لغوشده' },
-  return_in_progress: { tone: 'warn', icon: '↩', label: 'مرجوعی در جریان' },
-  returned: { tone: 'neutral', icon: '↩', label: 'مستردشده' },
+  pending_payment: { tone: 'warn', icon: 'clock', label: 'در انتظار پرداخت' },
+  paid: { tone: 'ok', icon: 'check', label: 'پرداخت‌شده' },
+  preparing: { tone: 'info', icon: 'package', label: 'در حال آماده‌سازی' },
+  shipped: { tone: 'info', icon: 'truck', label: 'ارسال‌شده' },
+  completed: { tone: 'ok', icon: 'check', label: 'تکمیل‌شده' },
+  canceled: { tone: 'danger', icon: 'x', label: 'لغوشده' },
+  return_in_progress: { tone: 'warn', icon: 'undo', label: 'مرجوعی در جریان' },
+  returned: { tone: 'neutral', icon: 'undo', label: 'مستردشده' },
   // Service requests
-  draft: { tone: 'neutral', icon: '📝', label: 'پیش‌نویس' },
-  submitted: { tone: 'warn', icon: '📨', label: 'ثبت‌شده (منتظر پرداخت)' },
-  queued: { tone: 'info', icon: '🗂️', label: 'در صف بررسی' },
-  assigned: { tone: 'info', icon: '👤', label: 'تخصیص‌یافته' },
-  in_progress: { tone: 'info', icon: '⚙️', label: 'در حال انجام' },
-  waiting_customer: { tone: 'warn', icon: '💬', label: 'منتظر پاسخ مشتری' },
-  rejected: { tone: 'danger', icon: '⛔', label: 'ردشده' },
-  failed: { tone: 'danger', icon: '⚠️', label: 'ناموفق' },
-  refunded: { tone: 'neutral', icon: '↩', label: 'مبلغ مستردشده' },
+  draft: { tone: 'neutral', icon: 'edit', label: 'پیش‌نویس' },
+  submitted: { tone: 'warn', icon: 'send', label: 'ثبت‌شده (منتظر پرداخت)' },
+  queued: { tone: 'info', icon: 'folder', label: 'در صف بررسی' },
+  assigned: { tone: 'info', icon: 'user', label: 'تخصیص‌یافته' },
+  in_progress: { tone: 'info', icon: 'settings', label: 'در حال انجام' },
+  waiting_customer: { tone: 'warn', icon: 'message', label: 'منتظر پاسخ مشتری' },
+  rejected: { tone: 'danger', icon: 'ban', label: 'ردشده' },
+  failed: { tone: 'danger', icon: 'alert', label: 'ناموفق' },
+  refunded: { tone: 'neutral', icon: 'undo', label: 'مبلغ مستردشده' },
   // Payments
-  pending: { tone: 'warn', icon: '⏳', label: 'در انتظار پرداخت' },
-  expired: { tone: 'warn', icon: '❓', label: 'منقضی / نتیجهٔ نامعلوم' },
+  pending: { tone: 'warn', icon: 'clock', label: 'در انتظار پرداخت' },
+  expired: { tone: 'warn', icon: 'help', label: 'منقضی / نتیجهٔ نامعلوم' },
   // Tickets
-  new: { tone: 'warn', icon: '🆕', label: 'جدید' },
-  open: { tone: 'info', icon: '📂', label: 'باز' },
-  waiting_team: { tone: 'warn', icon: '🔄', label: 'ارجاع‌شده به تیم' },
-  resolved: { tone: 'ok', icon: '✓', label: 'حل‌شده' },
-  closed: { tone: 'neutral', icon: '🔒', label: 'بسته' },
+  new: { tone: 'warn', icon: 'plus', label: 'جدید' },
+  open: { tone: 'info', icon: 'folder', label: 'باز' },
+  waiting_team: { tone: 'warn', icon: 'refresh', label: 'ارجاع‌شده به تیم' },
+  resolved: { tone: 'ok', icon: 'check', label: 'حل‌شده' },
+  closed: { tone: 'neutral', icon: 'lock', label: 'بسته' },
   // Users / Products
-  active: { tone: 'ok', icon: '✓', label: 'فعال' },
-  suspended: { tone: 'danger', icon: '⛔', label: 'تعلیق‌شده' },
-  archived: { tone: 'neutral', icon: '🗄️', label: 'بایگانی‌شده' }
+  active: { tone: 'ok', icon: 'check', label: 'فعال' },
+  suspended: { tone: 'danger', icon: 'ban', label: 'تعلیق‌شده' },
+  archived: { tone: 'neutral', icon: 'archive', label: 'بایگانی‌شده' }
 };
 
 export function StatusBadge({ status, labelOverride }) {
-  const entry = STATUS_STYLE_MAP[status] || { tone: 'neutral', icon: '•', label: status || 'نامشخص' };
+  const entry = STATUS_STYLE_MAP[status] || { tone: 'neutral', icon: 'dot', label: status || 'نامشخص' };
   return (
     <span className={`badge badge-${entry.tone}`}>
-      <span aria-hidden="true">{entry.icon}</span>
+      <Icon name={entry.icon} color="currentColor" size={14} />
       <span>{labelOverride || entry.label}</span>
     </span>
   );
@@ -141,7 +142,7 @@ export function ProductImage({ src, alt, className = 'product-thumb' }) {
   if (!src || failed) {
     return (
       <div className="product-thumb-fallback" role="img" aria-label={alt || 'تصویر کالا در دسترس نیست'}>
-        <span>🖼️ {alt || 'تصویر کالا'}</span>
+        <span><Icon name="image" /> {alt || 'تصویر کالا'}</span>
       </div>
     );
   }
@@ -185,7 +186,7 @@ export function ConfirmDialog({
             disabled={busy}
             onClick={onConfirm}
           >
-            {busy ? '⏳ در حال انجام...' : confirmLabel}
+            {busy ? (<><Icon name="clock" color="currentColor" size={16} /> در حال انجام...</>) : confirmLabel}
           </button>
         </div>
       </div>
@@ -210,7 +211,7 @@ export function OfflineBanner() {
   if (!offline) return null;
   return (
     <div className="offline-banner" role="alert">
-      📡 اتصال اینترنت شما قطع است. اطلاعات مالی و ثبت سفارش در حالت آفلاین ذخیره یا در صف پنهان قرار نمی‌گیرند؛ پس از اتصال مجدد، عملیات را آگاهانه تأیید و ارسال کنید.
+      <Icon name="wifiOff" color="currentColor" /> اتصال اینترنت شما قطع است. اطلاعات مالی و ثبت سفارش در حالت آفلاین ذخیره یا در صف پنهان قرار نمی‌گیرند؛ پس از اتصال مجدد، عملیات را آگاهانه تأیید و ارسال کنید.
     </div>
   );
 }
