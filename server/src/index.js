@@ -1,0 +1,26 @@
+'use strict';
+
+const config = require('./config');
+const { migrate } = require('./db/migrate');
+const { close } = require('./db');
+const { createApp } = require('./app');
+const logger = require('./utils/logger');
+
+migrate((msg) => logger.info(msg));
+
+const app = createApp();
+const server = app.listen(config.port, config.host, () => {
+  logger.info(`CENTRAL MINE API listening on http://${config.host}:${config.port} (${config.env})`);
+});
+
+function shutdown(signal) {
+  logger.info(`received ${signal}, shutting down gracefully`);
+  server.close(() => {
+    close();
+    process.exit(0);
+  });
+  setTimeout(() => process.exit(1), 8000).unref();
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

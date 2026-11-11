@@ -1,0 +1,34 @@
+name: CENTRAL MINE CI
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install backend dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: client
+        run: npm ci
+
+      - name: Build Persian RTL frontend (PWA shell)
+        working-directory: client
+        run: npm run build
+
+      - name: Run unit, migration/rollback, backup & 20-scenario acceptance tests
+        working-directory: server
+        run: npm test

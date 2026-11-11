@@ -1,0 +1,19 @@
+{
+  "name": "CENTRAL MINE — فروشگاه و خدمات عملیاتی",
+  "short_name": "CENTRAL MINE",
+  "description": "پلتفرم فارسی فروش کالاهای فنی و ثبت و پیگیری درخواست‌های خدمات عملیاتی",
+  "lang": "fa-IR",
+  "dir": "rtl",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
