@@ -22,7 +22,7 @@ export function HomePage() {
     setError(null);
     try {
       const requests = [
-        apiFetch('/products?limit=4&sort=newest'),
+        apiFetch('/products?limit=100&sort=newest'),
         apiFetch('/lth/config'),
         apiFetch('/lth/treasury')
       ];
@@ -44,6 +44,12 @@ export function HomePage() {
   useEffect(() => {
     loadHome();
   }, [loadHome]);
+
+  useEffect(() => {
+    if (!loading && window.location.hash === '#products') {
+      document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [loading]);
 
   const goWalletAction = (panel) => {
     if (!user) {
@@ -113,7 +119,7 @@ export function HomePage() {
               ترکیب کیف پول و خزانهٔ شفاف <strong>LOTH COIN (LTH)</strong> با قرارداد هوشمند اثبات سهام (PoS)، در کنار تأمین مستقیم تجهیزات صنعتی و خدمات کالیبراسیون و تعمیرات با کد رهگیری و SLA مشخص.
             </p>
             <div className="flex-gap">
-              <Link to="/shop" className="btn btn-primary" style={{ background: '#ec1e79' }}>🛍️ ورود به فروشگاه کالا</Link>
+              <Link to="/#products" className="btn btn-primary" style={{ background: '#ec1e79' }}>🛍️ دیدن محصولات</Link>
               <Link to="/services" className="btn btn-secondary">⚙️ ثبت درخواست خدمت فنی</Link>
               <Link to="/treasury" className="btn btn-secondary">🏛️ بررسی خزانهٔ پروتکل</Link>
             </div>
@@ -121,15 +127,14 @@ export function HomePage() {
         </div>
       </section>
 
-      {loading && <LoadingState label="در حال بارگذاری کاتالوگ و خدمات فعال..." />}
+      {loading && <LoadingState label="در حال بارگذاری محصولات..." />}
       {!loading && error && <ErrorState error={error} onRetry={loadHome} />}
 
       {!loading && !error && (
         <>
-          <section style={{ marginBottom: 28 }}>
+          <section id="products" style={{ marginBottom: 28, scrollMarginTop: 88 }}>
             <div className="flex-between" style={{ marginBottom: 12 }}>
-              <h2 style={{ margin: 0, fontSize: '1.25rem' }}>جدیدترین کالاهای فروشگاه</h2>
-              <Link to="/shop" className="btn btn-secondary btn-sm">همهٔ کالاها ←</Link>
+              <h2 style={{ margin: 0, fontSize: '1.25rem' }}>محصولات فروشگاه</h2>
             </div>
             {products.length === 0 ? (
               <EmptyState title="هنوز کالایی ثبت نشده است" />
