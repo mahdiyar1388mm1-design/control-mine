@@ -93,6 +93,10 @@ export function AuthPage() {
     setMode(nextMode);
     setError(null);
     setSandboxHint('');
+    if (nextMode !== 'otp') {
+      setOtpSent(false);
+      setOtpCode('');
+    }
   };
 
   return (
@@ -104,10 +108,11 @@ export function AuthPage() {
             <h1>{mode === 'register' ? 'ایجاد حساب کاربری' : mode === 'otp' ? 'ورود با کد یک‌بارمصرف' : 'ورود به حساب کاربری'}</h1>
           </div>
 
-          <div className="auth-mode-tabs" role="tablist" aria-label="روش ورود">
-            <button type="button" role="tab" aria-selected={mode === 'login'} className={mode === 'login' ? 'active' : ''} onClick={() => setAuthMode('login')}>رمز عبور</button>
-            <button type="button" role="tab" aria-selected={mode === 'otp'} className={mode === 'otp' ? 'active' : ''} onClick={() => setAuthMode('otp')}>کد یک‌بارمصرف</button>
+          <div className="auth-mode-tabs" aria-label="انتخاب ورود یا ثبت‌نام">
+            <button type="button" className={mode !== 'register' ? 'active' : ''} aria-pressed={mode !== 'register'} onClick={() => setAuthMode('login')}>ورود</button>
+            <button type="button" className={mode === 'register' ? 'active' : ''} aria-pressed={mode === 'register'} onClick={() => setAuthMode('register')}>ثبت‌نام</button>
           </div>
+          <p className="auth-form-intro">{mode === 'register' ? 'برای ساخت حساب، اطلاعات زیر را وارد کنید.' : mode === 'otp' ? 'شمارهٔ همراه خود را وارد کنید تا کد ورود برایتان صادر شود.' : 'برای ادامه، شمارهٔ همراه و رمز عبورتان را وارد کنید.'}</p>
 
           {error && (
             <>
@@ -121,18 +126,18 @@ export function AuthPage() {
               <div className="auth-field">
                 <label htmlFor="login-phone">شماره موبایل</label>
                 <div className="auth-input-wrap">
-                  <span className="auth-input-icon" aria-hidden="true">♧</span>
-                  <input id="login-phone" className="mono" type="tel" inputMode="numeric" autoComplete="tel" required placeholder="09123456789" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                  <input id="login-phone" className="mono" type="tel" inputMode="numeric" dir="ltr" autoComplete="tel" aria-describedby="login-phone-help" required placeholder="0912 345 6789" value={phone} onChange={(e) => setPhone(e.target.value)} />
                 </div>
+                <span id="login-phone-help" className="auth-field-help">شماره‌ای را وارد کنید که هنگام ثبت‌نام استفاده کرده‌اید.</span>
               </div>
               <div className="auth-field">
                 <label htmlFor="login-pass">رمز عبور</label>
                 <div className="auth-input-wrap auth-password-wrap">
-                  <button type="button" className="auth-reveal" onClick={() => setShowPassword((shown) => !shown)} aria-label={showPassword ? 'پنهان کردن رمز عبور' : 'نمایش رمز عبور'}>{showPassword ? '◉' : '◎'}</button>
-                  <input id="login-pass" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-                  <span className="auth-input-icon" aria-hidden="true">♙</span>
+                  <input id="login-pass" type={showPassword ? 'text' : 'password'} autoComplete="current-password" aria-describedby="login-pass-help" required value={password} onChange={(e) => setPassword(e.target.value)} />
+                  <button type="button" className="auth-reveal" onClick={() => setShowPassword((shown) => !shown)} aria-label={showPassword ? 'پنهان کردن رمز عبور' : 'نمایش رمز عبور'}>{showPassword ? 'پنهان' : 'نمایش'}</button>
                 </div>
-                <button type="button" className="auth-text-link auth-forgot" onClick={() => setAuthMode('otp')}>ورود با کد یک‌بارمصرف</button>
+                <span id="login-pass-help" className="auth-field-help">رمز عبور حساب کاربری‌تان را وارد کنید.</span>
+                <button type="button" className="auth-text-link auth-forgot" onClick={() => setAuthMode('otp')}>رمز را ندارید؟ ورود با کد یک‌بارمصرف</button>
               </div>
               <button type="submit" className="auth-submit" disabled={busy}>
                 <span>{busy ? 'در حال بررسی...' : 'ورود به حساب'}</span><span aria-hidden="true">←</span>
@@ -147,22 +152,23 @@ export function AuthPage() {
                 <div className="auth-field">
                   <label htmlFor="otp-phone">شماره موبایل</label>
                   <div className="auth-input-wrap">
-                    <span className="auth-input-icon" aria-hidden="true">♧</span>
-                    <input id="otp-phone" className="mono" type="tel" inputMode="numeric" autoComplete="tel" required placeholder="09123456789" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                    <input id="otp-phone" className="mono" type="tel" inputMode="numeric" dir="ltr" autoComplete="tel" required placeholder="0912 345 6789" value={phone} onChange={(e) => setPhone(e.target.value)} />
                   </div>
                 </div>
                 <button type="submit" className="auth-submit" disabled={busy}>{busy ? 'در حال ارسال کد...' : 'دریافت کد ورود'}<span aria-hidden="true">←</span></button>
+                <button type="button" className="auth-text-link auth-back-to-login" onClick={() => setAuthMode('login')}>بازگشت به ورود با رمز عبور</button>
               </form>
             ) : (
               <form className="auth-form" onSubmit={handleVerifyOtp}>
                 {sandboxHint && <div className="alert-inline info">{sandboxHint}</div>}
                 <div className="auth-field">
-                  <label htmlFor="otp-code">کد ۶ رقمی</label>
-                  <div className="auth-input-wrap"><input id="otp-code" className="mono" inputMode="numeric" autoComplete="one-time-code" required maxLength={6} value={otpCode} onChange={(e) => setOtpCode(e.target.value)} /></div>
+                  <label htmlFor="otp-code">کد تأیید</label>
+                  <div className="auth-input-wrap"><input id="otp-code" className="mono auth-otp-input" dir="ltr" inputMode="numeric" autoComplete="one-time-code" aria-describedby="otp-code-help" required maxLength={6} placeholder="— — — — — —" value={otpCode} onChange={(e) => setOtpCode(e.target.value)} /></div>
+                  <span id="otp-code-help" className="auth-field-help">کد ۶ رقمی ارسال‌شده را وارد کنید.</span>
                 </div>
-                <div className="flex-gap">
-                  <button type="button" className="btn btn-secondary" onClick={() => setOtpSent(false)}>تغییر شماره</button>
-                  <button type="submit" className="auth-submit" disabled={busy}>{busy ? 'در حال بررسی...' : 'تأیید و ورود'}</button>
+                <div className="auth-otp-actions">
+                  <button type="button" className="auth-text-link" onClick={() => { setOtpSent(false); setOtpCode(''); setSandboxHint(''); }}>تغییر شماره</button>
+                  <button type="submit" className="auth-submit" disabled={busy}>{busy ? 'در حال بررسی...' : 'تأیید کد و ورود'}</button>
                 </div>
               </form>
             )
@@ -171,16 +177,18 @@ export function AuthPage() {
           {mode === 'register' && (
             <form className="auth-form auth-register-form" onSubmit={handleRegister}>
               <div className="auth-field"><label htmlFor="reg-name">نام و نام خانوادگی</label><div className="auth-input-wrap"><input id="reg-name" autoComplete="name" required minLength={3} value={fullName} onChange={(e) => setFullName(e.target.value)} /></div></div>
-              <div className="auth-field"><label htmlFor="reg-phone">شماره موبایل</label><div className="auth-input-wrap"><input id="reg-phone" className="mono" type="tel" inputMode="numeric" autoComplete="tel" required placeholder="09121234567" value={phone} onChange={(e) => setPhone(e.target.value)} /></div></div>
+              <div className="auth-field"><label htmlFor="reg-phone">شماره موبایل</label><div className="auth-input-wrap"><input id="reg-phone" className="mono" type="tel" inputMode="numeric" dir="ltr" autoComplete="tel" aria-describedby="reg-phone-help" required placeholder="0912 345 6789" value={phone} onChange={(e) => setPhone(e.target.value)} /></div><span id="reg-phone-help" className="auth-field-help">از شمارهٔ همراه فعال خود استفاده کنید.</span></div>
               <div className="auth-field"><label htmlFor="reg-email">رایانامه (اختیاری)</label><div className="auth-input-wrap"><input id="reg-email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} /></div></div>
-              <div className="auth-field"><label htmlFor="reg-pass">رمز عبور (حداقل ۸ نویسه)</label><div className="auth-input-wrap"><input id="reg-pass" type="password" autoComplete="new-password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} /></div></div>
+              <div className="auth-field"><label htmlFor="reg-pass">رمز عبور</label><div className="auth-input-wrap"><input id="reg-pass" type={showPassword ? 'text' : 'password'} autoComplete="new-password" aria-describedby="reg-pass-help" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} /><button type="button" className="auth-reveal" onClick={() => setShowPassword((shown) => !shown)} aria-label={showPassword ? 'پنهان کردن رمز عبور' : 'نمایش رمز عبور'}>{showPassword ? 'پنهان' : 'نمایش'}</button></div><span id="reg-pass-help" className="auth-field-help">حداقل ۸ نویسه انتخاب کنید؛ رمز قوی‌تر امنیت حساب را بیشتر می‌کند.</span></div>
               <button type="submit" className="auth-submit" disabled={busy}>{busy ? 'در حال ایجاد حساب...' : 'ایجاد حساب کاربری'}<span aria-hidden="true">←</span></button>
             </form>
           )}
 
-          <div className="auth-signup-prompt">
-            {mode === 'register' ? <>حساب کاربری دارید؟ <button type="button" className="auth-text-link" onClick={() => setAuthMode('login')}>وارد شوید</button></> : <>هنوز حساب کاربری ندارید؟ <button type="button" className="auth-text-link" onClick={() => setAuthMode('register')}>ثبت‌نام کنید</button></>}
-          </div>
+          {mode === 'otp' && !otpSent && (
+            <div className="auth-signup-prompt auth-otp-prompt">
+              <button type="button" className="auth-text-link" onClick={() => setAuthMode('register')}>حساب ندارید؟ ثبت‌نام کنید</button>
+            </div>
+          )}
           <p className="auth-security-note"><span aria-hidden="true">♢</span> امنیت اطلاعات شما برای ما اهمیت دارد</p>
         </div>
 
