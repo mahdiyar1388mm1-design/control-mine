@@ -3,7 +3,9 @@ import { Link, NavLink, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { formatDateTime, ROLE_LABELS } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
+import { Icon } from '../components/Icon';
 import { EmptyState, ErrorState, FieldErrorsList, LoadingState } from '../components/StateViews';
+import '../styles/shipping-profile.css';
 
 export function AuthPage() {
   const navigate = useNavigate();
@@ -479,19 +481,103 @@ export function AccountDashboardPage() {
   );
 }
 
+const SHIPPING_TITLE = 'اطلاعات ارسال خودکار';
+const SHIP_PHONE_RE = /^09\d{9}$/;
+const SHIP_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const SHIPPING_TIPS = [
+  'پس از ثبت اطلاعات، در سفارش‌های بعدی نیازی به وارد کردن مجدد اطلاعات نیست.',
+  'در صورت تغییر آدرس یا شماره تماس، لطفاً اطلاعات را در همین بخش به‌روزرسانی فرمایید.',
+  'درج کد پستی دقیق ۱۰ رقمی منطبق با نشانی جهت صدور بارنامه رسمی پست و تیپاکس الزامی است.',
+  'شماره شبا و کارت صرفاً جهت عودت وجه در صورت اعمال حق انصراف ۷ روزه (ماده ۳۷ قانون تجارت الکترونیک) استفاده می‌شود.'
+];
+
+function toLatinDigits(value) {
+  return String(value || '')
+    .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
+    .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+}
+
+function onlyDigits(value, maxLength) {
+  return toLatinDigits(value).replace(/\D/g, '').slice(0, maxLength);
+}
+
+// The design uses one full-address box («استان، شهر، خیابان، پلاک، واحد»); split it into the stored province / city / address_line.
+function splitFullAddress(text) {
+  const parts = String(text || '').split(/[،,]/).map((p) => p.trim()).filter(Boolean);
+  if (parts.length < 3) return null;
+  return { province: parts[0], city: parts[1], address_line: parts.slice(2).join('، ') };
+}
+
+function addressToShippingForm(address, user) {
+  if (!address) {
+    return {
+      full_name: user?.full_name || '',
+      phone: user?.phone || '',
+      email: user?.email || '',
+      card_number: '',
+      sheba: '',
+      postal_code: '',
+      full_address: '',
+      auto_fill: true
+    };
+  }
+  return {
+    full_name: address.recipient_name || '',
+    phone: address.recipient_phone || '',
+    email: address.recipient_email || '',
+    card_number: address.refund_card_number || '',
+    sheba: String(address.refund_sheba || '').replace(/^IR/i, ''),
+    postal_code: address.postal_code || '',
+    full_address: [address.province, address.city, address.address_line].filter(Boolean).join('، '),
+    auto_fill: address.auto_fill === undefined || address.auto_fill === null ? true : Boolean(address.auto_fill)
+  };
+}
+
+function validateShippingForm(form) {
+  const errors = {};
+  if (form.full_name.trim().length < 3) errors.full_name = 'نام و نام خانوادگی را کامل وارد کنید.';
+  if (!SHIP_PHONE_RE.test(form.phone)) errors.phone = 'شماره همراه باید ۱۱ رقم و با ۰۹ شروع شود.';
+  if (form.email.trim() && !SHIP_EMAIL_RE.test(form.email.trim())) errors.email = 'آدرس ایمیل معتبر نیست.';
+  if (form.card_number && form.card_number.length !== 16) errors.card_number = 'شماره کارت باید ۱۶ رقم باشد.';
+  if (form.sheba && form.sheba.length !== 24) errors.sheba = 'شماره شبا باید ۲۴ رقم (بدون IR) باشد.';
+  if (form.postal_code.length !== 10) errors.postal_code = 'کد پستی باید دقیقاً ۱۰ رقم باشد.';
+  const parts = splitFullAddress(form.full_address);
+  if (!parts) {
+    errors.full_address = 'نشانی را به شکل «استان، شهر، خیابان، پلاک، واحد» و با ویرگول جدا کنید.';
+  } else if (parts.province.length < 2 || parts.city.length < 2) {
+    errors.full_address = 'نام استان و شهر را در ابتدای نشانی بنویسید.';
+  } else if (parts.address_line.length < 10) {
+    errors.full_address = 'جزئیات نشانی (خیابان، پلاک، واحد) را کامل‌تر بنویسید.';
+  }
+  return { errors, parts };
+}
+
+function ShipField({ id, label, icon, required, error, full, children }) {
+  return (
+    <div className={`ship-field${full ? ' ship-field-full' : ''}${error ? ' has-error' : ''}`}>
+      <label htmlFor={id} className="ship-label">
+        <Icon name={icon} size={16} />
+        <span>{label}</span>
+        {required && <span className="ship-req" aria-hidden="true">*</span>}
+      </label>
+      {children}
+      {error && <span className="ship-error" id={`${id}-error`}>{error}</span>}
+    </div>
+  );
+}
+
 export function ProfileAddressesPage() {
   const { user, authLoading } = useAuth();
-  const [addresses, setAddresses] = useState([]);
-  const [addrForm, setAddrForm] = useState({
-    title: '', province: '', city: '', address_line: '', postal_code: '', recipient_name: '', recipient_phone: '', recipient_email: ''
-  });
+  const [savedAddress, setSavedAddress] = useState(null);
+  const [form, setForm] = useState(() => addressToShippingForm(null, null));
+  const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [msg, setMsg] = useState('');
   const [opErr, setOpErr] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  const loadAccount = useCallback(async () => {
+  const loadShipping = useCallback(async () => {
     if (!user) {
       setLoading(false);
       return;
@@ -499,8 +585,12 @@ export function ProfileAddressesPage() {
     setLoading(true);
     setError(null);
     try {
-      const aRes = await apiFetch('/me/addresses');
-      setAddresses(aRes.items || []);
+      const res = await apiFetch('/me/addresses');
+      const items = res.items || [];
+      const current = items.find((a) => a.is_default) || items[0] || null;
+      setSavedAddress(current);
+      setForm(addressToShippingForm(current, user));
+      setFieldErrors({});
     } catch (err) {
       setError(err);
     } finally {
@@ -509,38 +599,66 @@ export function ProfileAddressesPage() {
   }, [user]);
 
   useEffect(() => {
-    if (!authLoading) loadAccount();
-  }, [authLoading, loadAccount]);
+    if (!authLoading) loadShipping();
+  }, [authLoading, loadShipping]);
 
-  if (authLoading || loading) return <LoadingState label="در حال بارگذاری حساب کاربری..." />;
-  if (!user) return <EmptyState title="وارد حساب کاربری نشده‌اید" actionLabel="ورود" actionTo="/auth?next=/account" />;
-  if (error) return <ErrorState error={error} onRetry={loadAccount} />;
+  if (authLoading || loading) return <LoadingState label="در حال بارگذاری اطلاعات ارسال..." />;
+  if (!user) return <EmptyState title="وارد حساب کاربری نشده‌اید" actionLabel="ورود" actionTo="/auth?next=/account/shipping" />;
+  if (error) return <ErrorState error={error} onRetry={loadShipping} />;
 
-  const handleAddAddress = async (e) => {
-    e.preventDefault();
-    setBusy(true);
+  const updateField = (field, value) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
     setMsg('');
-    setOpErr(null);
-    try {
-      await apiFetch('/me/addresses', { method: 'POST', body: addrForm });
-      setAddrForm({ title: '', province: '', city: '', address_line: '', postal_code: '', recipient_name: '', recipient_phone: '', recipient_email: '' });
-      await loadAccount();
-      setMsg('نشانی جدید ثبت شد.');
-    } catch (err) {
-      setOpErr(err);
-    } finally {
-      setBusy(false);
+    if (fieldErrors[field]) {
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
     }
   };
 
-  const handleDeleteAddress = async (id) => {
-    setBusy(true);
+  const fieldProps = (field) => ({
+    id: `ship-${field}`,
+    'aria-invalid': fieldErrors[field] ? 'true' : undefined,
+    'aria-describedby': fieldErrors[field] ? `ship-${field}-error` : undefined
+  });
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     setMsg('');
     setOpErr(null);
+    const { errors, parts } = validateShippingForm(form);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      const firstField = Object.keys(errors)[0];
+      document.getElementById(`ship-${firstField}`)?.focus();
+      return;
+    }
+    const body = {
+      title: savedAddress?.title || SHIPPING_TITLE,
+      province: parts.province,
+      city: parts.city,
+      address_line: parts.address_line,
+      postal_code: form.postal_code,
+      recipient_name: form.full_name.trim(),
+      recipient_phone: form.phone,
+      recipient_email: form.email.trim() || null,
+      refund_card_number: form.card_number || null,
+      refund_sheba: form.sheba ? `IR${form.sheba}` : null,
+      auto_fill: form.auto_fill,
+      is_default: form.auto_fill ? true : undefined
+    };
+    setBusy(true);
     try {
-      await apiFetch(`/me/addresses/${id}`, { method: 'DELETE' });
-      await loadAccount();
-      setMsg('نشانی حذف شد.');
+      const res = savedAddress
+        ? await apiFetch(`/me/addresses/${savedAddress.id}`, { method: 'PATCH', body })
+        : await apiFetch('/me/addresses', { method: 'POST', body });
+      setSavedAddress(res.address);
+      setForm(addressToShippingForm(res.address, user));
+      setMsg(form.auto_fill
+        ? 'اطلاعات ارسال ذخیره شد و در سفارش‌های بعدی به‌صورت خودکار تکمیل می‌شود.'
+        : 'اطلاعات ارسال ذخیره شد.');
     } catch (err) {
       setOpErr(err);
     } finally {
@@ -549,119 +667,152 @@ export function ProfileAddressesPage() {
   };
 
   return (
-    <AccountLayout active="shipping" title="اطلاعات ارسال" subtitle="نشانی‌ها و اطلاعات گیرندهٔ سفارش‌های شما">
-      {msg && <div className="alert-inline ok" role="status">✓ {msg}</div>}
-      {opErr && (
-        <>
-          <div className="alert-inline error" role="alert">⚠️ {opErr.message}</div>
-          <FieldErrorsList details={opErr.details} />
-        </>
-      )}
+    <AccountLayout active="shipping" title="اطلاعات ارسال" subtitle="اطلاعات گیرنده و نشانی تحویل سفارش‌های شما">
+      <div className="ship-layout">
+        <form className="ship-card ship-form" onSubmit={handleSubmit} noValidate>
+          <header className="ship-form-head">
+            <div>
+              <h2>اطلاعات ارسال خودکار</h2>
+              <p>با فعال‌سازی این بخش، اطلاعات ارسال شما ذخیره می‌شود و پس از ثبت سفارش، مشخصات مورد نیاز به صورت خودکار در سفارش‌های بعدی تکمیل خواهد شد. در صورت تغییر آدرس یا اطلاعات تماس، لطفاً اطلاعات خود را به‌روزرسانی نمایید.</p>
+            </div>
+            <span className="ship-head-icon" aria-hidden="true"><Icon name="shieldCheck" size={24} /></span>
+          </header>
 
-      <div className="grid grid-2">
-        <form onSubmit={handleSaveProfile} className="card">
-          <h2 style={{ marginTop: 0, fontSize: '1.08rem' }}>اطلاعات تماس و هویتی</h2>
-          <div className="form-row">
-            <label className="form-label">نام و نام خانوادگی</label>
-            <input className="input" required value={profile.full_name} onChange={(e) => setProfile({ ...profile, full_name: e.target.value })} />
-          </div>
-          <div className="form-row">
-            <label className="form-label">رایانامه</label>
-            <input className="input mono" value={profile.email} onChange={(e) => setProfile({ ...profile, email: e.target.value })} />
-          </div>
-          <div className="form-row">
-            <label className="form-label">شماره موبایل (تغییر آن نیازمند رمز فعلی است)</label>
-            <input className="input mono" required value={profile.phone} onChange={(e) => setProfile({ ...profile, phone: e.target.value })} />
-          </div>
-          {profile.phone !== user.phone && (
-            <div className="form-row">
-              <label className="form-label">رمز عبور فعلی جهت تأیید مالکیت <span className="req-star">*</span></label>
-              <input type="password" className="input" required value={profile.current_password} onChange={(e) => setProfile({ ...profile, current_password: e.target.value })} />
+          {msg && <div className="alert-inline ok ship-alert" role="status">✓ {msg}</div>}
+          {opErr && (
+            <div className="ship-alert">
+              <div className="alert-inline error" role="alert">⚠️ {opErr.message}</div>
+              <FieldErrorsList details={opErr.details} />
             </div>
           )}
-          <button type="submit" className="btn btn-primary" disabled={busy}>ذخیرهٔ تغییرات پروفایل</button>
-        </form>
 
-        <form onSubmit={handleChangePassword} className="card">
-          <h2 style={{ marginTop: 0, fontSize: '1.08rem' }}>تغییر رمز عبور و بستن نشست‌های دیگر</h2>
-          <div className="form-row">
-            <label className="form-label">رمز عبور فعلی <span className="req-star">*</span></label>
-            <input type="password" className="input" required value={pwdForm.old_password} onChange={(e) => setPwdForm({ ...pwdForm, old_password: e.target.value })} />
-          </div>
-          <div className="form-row">
-            <label className="form-label">رمز عبور جدید (حداقل ۸ حرف شامل حرف و عدد) <span className="req-star">*</span></label>
-            <input type="password" className="input" required minLength={8} value={pwdForm.new_password} onChange={(e) => setPwdForm({ ...pwdForm, new_password: e.target.value })} />
-          </div>
-          <button type="submit" className="btn btn-secondary" disabled={busy}>تغییر رمز عبور</button>
-        </form>
-      </div>
+          <div className="ship-grid">
+            <ShipField id="ship-full_name" label="نام و نام خانوادگی" icon="user" required error={fieldErrors.full_name}>
+              <input
+                {...fieldProps('full_name')}
+                className="ship-input"
+                autoComplete="name"
+                placeholder="نام و نام خانوادگی خود را وارد کنید"
+                value={form.full_name}
+                onChange={(e) => updateField('full_name', e.target.value)}
+              />
+            </ShipField>
 
-      <section className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1.08rem' }}>دفترچهٔ نشانی‌های من</h2>
-        {addresses.length === 0 ? (
-          <p className="muted">هنوز نشانی‌ای ثبت نشده است.</p>
-        ) : (
-          <div className="grid grid-2" style={{ marginBottom: 18 }}>
-            {addresses.map((a) => (
-              <div key={a.id} className="card" style={{ marginBottom: 0, background: 'var(--surface-alt)' }}>
-                <div className="flex-between">
-                  <strong>{a.title} {a.is_default ? '(پیش‌فرض)' : ''}</strong>
-                  <button type="button" className="btn btn-danger btn-sm" disabled={busy} onClick={() => handleDeleteAddress(a.id)}>
-                    حذف
-                  </button>
-                </div>
-                <p style={{ margin: '6px 0', fontSize: '0.88rem' }}>{a.province}، {a.city}، {a.address_line}</p>
-                <div className="muted" style={{ fontSize: '0.8rem' }}>
-                  کدپستی: <span className="mono">{a.postal_code}</span> • گیرنده: {a.recipient_name} (<span className="mono">{a.recipient_phone}</span>)
-                  {a.recipient_email && <> • ایمیل: <span className="mono">{a.recipient_email}</span></>}
-                </div>
+            <ShipField id="ship-phone" label="شماره تماس همراه" icon="phone" required error={fieldErrors.phone}>
+              <input
+                {...fieldProps('phone')}
+                className="ship-input ship-input-num"
+                type="tel"
+                inputMode="numeric"
+                autoComplete="tel"
+                dir={form.phone ? 'ltr' : 'rtl'}
+                placeholder="مثال: 09121234567"
+                value={form.phone}
+                onChange={(e) => updateField('phone', onlyDigits(e.target.value, 11))}
+              />
+            </ShipField>
+
+            <ShipField id="ship-email" label="آدرس ایمیل" icon="mail" error={fieldErrors.email}>
+              <input
+                {...fieldProps('email')}
+                className="ship-input"
+                type="email"
+                autoComplete="email"
+                dir="ltr"
+                placeholder="example@domain.com"
+                value={form.email}
+                onChange={(e) => updateField('email', e.target.value)}
+              />
+            </ShipField>
+
+            <ShipField id="ship-card_number" label="شماره کارت (جهت مرجوعی)" icon="creditCard" error={fieldErrors.card_number}>
+              <input
+                {...fieldProps('card_number')}
+                className="ship-input ship-input-num"
+                inputMode="numeric"
+                autoComplete="off"
+                dir={form.card_number ? 'ltr' : 'rtl'}
+                placeholder="شماره ۱۶ رقم کارت"
+                value={form.card_number}
+                onChange={(e) => updateField('card_number', onlyDigits(e.target.value, 16))}
+              />
+            </ShipField>
+
+            <ShipField id="ship-sheba" label="شماره شبا (اختیاری)" icon="creditCard" error={fieldErrors.sheba}>
+              <div className="ship-input-wrap">
+                <input
+                  {...fieldProps('sheba')}
+                  className="ship-input ship-input-num"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  dir={form.sheba ? 'ltr' : 'rtl'}
+                  placeholder="۲۴ رقم بدون IR"
+                  value={form.sheba}
+                  onChange={(e) => updateField('sheba', onlyDigits(String(e.target.value).replace(/^\s*IR/i, ''), 24))}
+                />
+                <span className="ship-input-prefix" dir="ltr" aria-hidden="true">IR -</span>
               </div>
-            ))}
-          </div>
-        )}
+            </ShipField>
 
-        <form onSubmit={handleAddAddress} style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 14 }}>
-          <h3 style={{ marginTop: 0, fontSize: '0.98rem' }}>اطلاعات ارسال و نشانی جدید</h3>
-          <p className="muted" style={{ marginTop: -6, fontSize: '.84rem' }}>این نشانی برای سفارش‌های بعدی در دفترچهٔ آدرس شما ذخیره می‌شود.</p>
-          <div className="grid grid-3">
-            <div className="form-row">
-              <label className="form-label">عنوان نشانی <span className="req-star">*</span></label>
-              <input className="input" required value={addrForm.title} onChange={(e) => setAddrForm({ ...addrForm, title: e.target.value })} />
-            </div>
-            <div className="form-row">
-              <label className="form-label">استان <span className="req-star">*</span></label>
-              <input className="input" required value={addrForm.province} onChange={(e) => setAddrForm({ ...addrForm, province: e.target.value })} />
-            </div>
-            <div className="form-row">
-              <label className="form-label">شهر <span className="req-star">*</span></label>
-              <input className="input" required value={addrForm.city} onChange={(e) => setAddrForm({ ...addrForm, city: e.target.value })} />
-            </div>
+            <ShipField id="ship-postal_code" label="کد پستی ۱۰ رقمی" icon="hash" required error={fieldErrors.postal_code}>
+              <input
+                {...fieldProps('postal_code')}
+                className="ship-input ship-input-num"
+                inputMode="numeric"
+                autoComplete="postal-code"
+                dir={form.postal_code ? 'ltr' : 'rtl'}
+                placeholder="کد پستی ۱۰ رقمی محل سکونت"
+                value={form.postal_code}
+                onChange={(e) => updateField('postal_code', onlyDigits(e.target.value, 10))}
+              />
+            </ShipField>
+
+            <ShipField id="ship-full_address" label="نشانی کامل پستی تحویل‌گیرنده" icon="mapPin" required full error={fieldErrors.full_address}>
+              <textarea
+                {...fieldProps('full_address')}
+                className="ship-input ship-textarea"
+                autoComplete="street-address"
+                rows={3}
+                placeholder="استان، شهر، خیابان، پلاک، واحد..."
+                value={form.full_address}
+                onChange={(e) => updateField('full_address', e.target.value)}
+              />
+            </ShipField>
           </div>
-          <div className="form-row">
-            <label className="form-label">نشانی دقیق پستی <span className="req-star">*</span></label>
-            <input className="input" required minLength={10} value={addrForm.address_line} onChange={(e) => setAddrForm({ ...addrForm, address_line: e.target.value })} />
-          </div>
-          <div className="grid grid-3">
-            <div className="form-row">
-              <label className="form-label">کدپستی ۱۰ رقمی <span className="req-star">*</span></label>
-              <input className="input mono" required minLength={10} maxLength={10} value={addrForm.postal_code} onChange={(e) => setAddrForm({ ...addrForm, postal_code: e.target.value })} />
-            </div>
-            <div className="form-row">
-              <label className="form-label">نام گیرنده <span className="req-star">*</span></label>
-              <input className="input" required value={addrForm.recipient_name} onChange={(e) => setAddrForm({ ...addrForm, recipient_name: e.target.value })} />
-            </div>
-            <div className="form-row">
-              <label className="form-label">شماره موبایل گیرنده <span className="req-star">*</span></label>
-              <input className="input mono" required placeholder="09121234567" value={addrForm.recipient_phone} onChange={(e) => setAddrForm({ ...addrForm, recipient_phone: e.target.value })} />
-            </div>
-            <div className="form-row">
-              <label className="form-label">ایمیل گیرنده (اختیاری)</label>
-              <input type="email" className="input mono" autoComplete="email" placeholder="name@example.com" value={addrForm.recipient_email} onChange={(e) => setAddrForm({ ...addrForm, recipient_email: e.target.value })} />
-            </div>
-          </div>
-          <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>ثبت نشانی</button>
+
+          <label className="ship-check">
+            <input
+              type="checkbox"
+              checked={form.auto_fill}
+              onChange={(e) => updateField('auto_fill', e.target.checked)}
+            />
+            <span>ارسال خودکار سفارش‌ها با اطلاعات ذخیره‌شده در خریدهای بعدی</span>
+          </label>
+
+          <button type="submit" className="ship-submit" disabled={busy}>
+            <Icon name="shieldCheck" size={18} color="#ffffff" />
+            <span>{busy ? 'در حال ثبت اطلاعات...' : 'ثبت اطلاعات'}</span>
+          </button>
         </form>
-      </section>
+
+        <aside className="ship-aside" aria-label="راهنمای اطلاعات ارسال">
+          <div className="ship-hero">
+            <span className="ship-hero-icon" aria-hidden="true"><Icon name="shieldCheck" size={34} color="#ffffff" /></span>
+            <h2>اطلاعات ارسال خودکار</h2>
+            <p>تسهیل و تسریع در چرخه ارسال مرسولات</p>
+          </div>
+
+          <div className="ship-card ship-tips">
+            <div className="ship-tips-head">
+              <h3>نکات مهم</h3>
+              <Icon name="bulb" size={20} />
+            </div>
+            <ul>
+              {SHIPPING_TIPS.map((tip) => <li key={tip}>{tip}</li>)}
+            </ul>
+          </div>
+        </aside>
+      </div>
     </AccountLayout>
   );
 }
