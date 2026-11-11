@@ -11,6 +11,6 @@
     "seed": "npm --prefix server run seed",
     "backup": "npm --prefix server run backup",
     "test": "npm --prefix client run build && npm --prefix server test",
-    "start": "npm --prefix server start"
+    "start": "bash scripts/start-server.sh"
   }
 }
