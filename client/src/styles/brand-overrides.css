@@ -1,5 +1,31 @@
 :root {
   --cm-pink: #ec1e79;
+  --bg: #fff9fc;
+  --primary: #ec1e79;
+  --primary-hover: #be185d;
+  --primary-soft: #fce7f3;
+  --info: #be185d;
+  --info-soft: #fce7f3;
+}
+
+/* Replace the remaining blue interface accents with the pink-and-white brand palette */
+:focus-visible {
+  outline-color: #ec1e79;
+}
+::selection {
+  background: #fbcfe8;
+  color: #831843;
+}
+.brand-tag {
+  background: rgba(236, 30, 121, 0.18);
+  color: #fbcfe8;
+}
+.msg-item.operator {
+  background: #fff5fa;
+  border-color: #fbcfe8;
+}
+.auth-password-wrap {
+  background: #fff5fa;
 }
 
 /* Logos across the site: transparent brand image, no sticker frame, border, outline, shadow or white background */
@@ -69,7 +95,7 @@
   border-color: var(--primary);
   background: var(--primary-soft);
   color: var(--primary-hover);
-  box-shadow: 0 0 0 2px rgba(3, 105, 161, 0.08);
+  box-shadow: 0 0 0 2px rgba(236, 30, 121, 0.08);
 }
 .home-brand-mark {
   display: inline-flex;
