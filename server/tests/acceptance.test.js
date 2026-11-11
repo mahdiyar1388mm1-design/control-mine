@@ -84,6 +84,27 @@ test('scenario #1 & #17: health check honesty, public catalog browse, search, fi
   for (const sku of detail.data.product.skus) {
     assert.equal(sku.cost_price_toman, undefined);
   }
+
+  // Public product detail must not reveal draft or archived catalog entries.
+  const admin = await loginAs('09120000001');
+  const draft = await api('/api/v1/admin/products', {
+    method: 'POST',
+    token: admin.token,
+    body: { name: 'کالای پیش‌نویس آزمون', status: 'draft' }
+  });
+  assert.equal(draft.status, 201);
+  const draftSlug = draft.data.product.slug;
+  assert.equal((await api(`/api/v1/products/${draftSlug}`)).status, 404);
+  assert.equal((await api(`/api/v1/admin/products/${draftSlug}`, { token: admin.token })).status, 200);
+
+  const archived = await api(`/api/v1/admin/products/${draft.data.product.id}`, {
+    method: 'PATCH',
+    token: admin.token,
+    body: { status: 'archived' }
+  });
+  assert.equal(archived.status, 200);
+  assert.equal((await api(`/api/v1/products/${draftSlug}`)).status, 404);
+  assert.equal((await api(`/api/v1/admin/products/${draftSlug}`, { token: admin.token })).status, 200);
 });
 
 test('scenario #2 & #3: select SKU, add to cart, and stock-drop before order placement rejects oversell', async () => {

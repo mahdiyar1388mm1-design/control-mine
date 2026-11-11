@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { isStaffRole, ROLE_LABELS } from '../lib/format';
 import { OfflineBanner } from './StateViews';
@@ -7,6 +7,10 @@ import { OfflineBanner } from './StateViews';
 export function Layout({ children }) {
   const { user, cartCount, unreadCount, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  if (location.pathname === '/auth') {
+    return <div className="auth-shell">{children}</div>;
+  }
   const [headerSearch, setHeaderSearch] = useState('');
   const staff = user && isStaffRole(user.role);
 

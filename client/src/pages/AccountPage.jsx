@@ -14,6 +14,7 @@ export function AuthPage() {
   const [mode, setMode] = useState('login'); // login | otp | register
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [otpSent, setOtpSent] = useState(false);
@@ -88,99 +89,112 @@ export function AuthPage() {
     }
   };
 
+  const setAuthMode = (nextMode) => {
+    setMode(nextMode);
+    setError(null);
+    setSandboxHint('');
+  };
+
   return (
-    <div style={{ maxWidth: 480, margin: '12px auto' }}>
-      <div className="card">
-        <div className="tabs">
-          <button type="button" className={`tab-btn ${mode === 'login' ? 'active' : ''}`} onClick={() => { setMode('login'); setError(null); }}>
-            ورود با رمز عبور
-          </button>
-          <button type="button" className={`tab-btn ${mode === 'otp' ? 'active' : ''}`} onClick={() => { setMode('otp'); setError(null); }}>
-            ورود با کد یک‌بارمصرف (آزمایشی)
-          </button>
-          <button type="button" className={`tab-btn ${mode === 'register' ? 'active' : ''}`} onClick={() => { setMode('register'); setError(null); }}>
-            ثبت‌نام حساب جدید
-          </button>
-        </div>
+    <div className="auth-page">
+      <section className="auth-card" aria-label="ورود به حساب کاربری">
+        <div className="auth-form-panel">
+          <div className="auth-form-heading">
+            <Link to="/" className="auth-mobile-brand">✧ <span>Central Mine</span></Link>
+            <h1>{mode === 'register' ? 'ایجاد حساب کاربری' : mode === 'otp' ? 'ورود با کد یک‌بارمصرف' : 'ورود به حساب کاربری'}</h1>
+          </div>
 
-        {error && (
-          <>
-            <div className="alert-inline error" role="alert">⚠️ {error.message}</div>
-            <FieldErrorsList details={error.details} />
-          </>
-        )}
+          <div className="auth-mode-tabs" role="tablist" aria-label="روش ورود">
+            <button type="button" role="tab" aria-selected={mode === 'login'} className={mode === 'login' ? 'active' : ''} onClick={() => setAuthMode('login')}>رمز عبور</button>
+            <button type="button" role="tab" aria-selected={mode === 'otp'} className={mode === 'otp' ? 'active' : ''} onClick={() => setAuthMode('otp')}>کد یک‌بارمصرف</button>
+          </div>
 
-        {mode === 'login' && (
-          <form onSubmit={handleLogin}>
-            <div className="form-row">
-              <label className="form-label" htmlFor="login-phone">شماره موبایل <span className="req-star">*</span></label>
-              <input id="login-phone" className="input mono" required placeholder="09120000010" value={phone} onChange={(e) => setPhone(e.target.value)} />
-            </div>
-            <div className="form-row">
-              <label className="form-label" htmlFor="login-pass">رمز عبور <span className="req-star">*</span></label>
-              <input id="login-pass" type="password" className="input" required value={password} onChange={(e) => setPassword(e.target.value)} />
-            </div>
-            <button type="submit" className="btn btn-primary btn-block" disabled={busy}>
-              {busy ? '⏳ در حال بررسی نشست...' : 'ورود به حساب کاربری'}
-            </button>
-          </form>
-        )}
+          {error && (
+            <>
+              <div className="alert-inline error" role="alert">⚠️ {error.message}</div>
+              <FieldErrorsList details={error.details} />
+            </>
+          )}
 
-        {mode === 'otp' && (
-          !otpSent ? (
-            <form onSubmit={handleRequestOtp}>
-              <div className="alert-inline warn" style={{ fontSize: '0.82rem', fontWeight: 500 }}>
-                در نسخهٔ فعلی سرویس پیامک خارجی متصل نیست و کد یک‌بارمصرف از طریق آداپتور آزمایشی (Sandbox) صادر می‌شود.
+          {mode === 'login' && (
+            <form className="auth-form" onSubmit={handleLogin}>
+              <div className="auth-field">
+                <label htmlFor="login-phone">شماره موبایل</label>
+                <div className="auth-input-wrap">
+                  <span className="auth-input-icon" aria-hidden="true">♧</span>
+                  <input id="login-phone" className="mono" type="tel" inputMode="numeric" autoComplete="tel" required placeholder="09123456789" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                </div>
               </div>
-              <div className="form-row">
-                <label className="form-label" htmlFor="otp-phone">شماره موبایل ثبت‌شده <span className="req-star">*</span></label>
-                <input id="otp-phone" className="input mono" required placeholder="09120000010" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <div className="auth-field">
+                <label htmlFor="login-pass">رمز عبور</label>
+                <div className="auth-input-wrap auth-password-wrap">
+                  <button type="button" className="auth-reveal" onClick={() => setShowPassword((shown) => !shown)} aria-label={showPassword ? 'پنهان کردن رمز عبور' : 'نمایش رمز عبور'}>{showPassword ? '◉' : '◎'}</button>
+                  <input id="login-pass" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+                  <span className="auth-input-icon" aria-hidden="true">♙</span>
+                </div>
+                <button type="button" className="auth-text-link auth-forgot" onClick={() => setAuthMode('otp')}>ورود با کد یک‌بارمصرف</button>
               </div>
-              <button type="submit" className="btn btn-primary btn-block" disabled={busy}>
-                {busy ? '⏳ در حال صدور کد...' : 'دریافت کد ۶ رقمی یک‌بارمصرف'}
+              <button type="submit" className="auth-submit" disabled={busy}>
+                <span>{busy ? 'در حال بررسی...' : 'ورود به حساب'}</span><span aria-hidden="true">←</span>
               </button>
             </form>
-          ) : (
-            <form onSubmit={handleVerifyOtp}>
-              {sandboxHint && <div className="alert-inline info">{sandboxHint}</div>}
-              <div className="form-row">
-                <label className="form-label" htmlFor="otp-code">کد ۶ رقمی <span className="req-star">*</span></label>
-                <input id="otp-code" className="input mono" required maxLength={6} value={otpCode} onChange={(e) => setOtpCode(e.target.value)} />
-              </div>
-              <div className="flex-gap">
-                <button type="button" className="btn btn-secondary" onClick={() => setOtpSent(false)}>تغییر شماره</button>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={busy}>
-                  {busy ? '⏳ در حال اعتبارسنجی...' : 'تأیید کد و ورود'}
-                </button>
-              </div>
-            </form>
-          )
-        )}
+          )}
 
-        {mode === 'register' && (
-          <form onSubmit={handleRegister}>
-            <div className="form-row">
-              <label className="form-label" htmlFor="reg-name">نام و نام خانوادگی <span className="req-star">*</span></label>
-              <input id="reg-name" className="input" required minLength={3} value={fullName} onChange={(e) => setFullName(e.target.value)} />
-            </div>
-            <div className="form-row">
-              <label className="form-label" htmlFor="reg-phone">شماره موبایل <span className="req-star">*</span></label>
-              <input id="reg-phone" className="input mono" required placeholder="09121234567" value={phone} onChange={(e) => setPhone(e.target.value)} />
-            </div>
-            <div className="form-row">
-              <label className="form-label" htmlFor="reg-email">رایانامه (اختیاری)</label>
-              <input id="reg-email" type="email" className="input mono" value={email} onChange={(e) => setEmail(e.target.value)} />
-            </div>
-            <div className="form-row">
-              <label className="form-label" htmlFor="reg-pass">رمز عبور (حداقل ۸ حرف شامل حرف و عدد) <span className="req-star">*</span></label>
-              <input id="reg-pass" type="password" className="input" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} />
-            </div>
-            <button type="submit" className="btn btn-primary btn-block" disabled={busy}>
-              {busy ? '⏳ در حال ایجاد حساب...' : 'ایجاد حساب کاربری'}
-            </button>
-          </form>
-        )}
-      </div>
+          {mode === 'otp' && (
+            !otpSent ? (
+              <form className="auth-form" onSubmit={handleRequestOtp}>
+                <div className="alert-inline warn auth-sandbox-note">پیامک در حالت آزمایشی است؛ کد ورود ممکن است در همین صفحه نمایش داده شود.</div>
+                <div className="auth-field">
+                  <label htmlFor="otp-phone">شماره موبایل</label>
+                  <div className="auth-input-wrap">
+                    <span className="auth-input-icon" aria-hidden="true">♧</span>
+                    <input id="otp-phone" className="mono" type="tel" inputMode="numeric" autoComplete="tel" required placeholder="09123456789" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                  </div>
+                </div>
+                <button type="submit" className="auth-submit" disabled={busy}>{busy ? 'در حال ارسال کد...' : 'دریافت کد ورود'}<span aria-hidden="true">←</span></button>
+              </form>
+            ) : (
+              <form className="auth-form" onSubmit={handleVerifyOtp}>
+                {sandboxHint && <div className="alert-inline info">{sandboxHint}</div>}
+                <div className="auth-field">
+                  <label htmlFor="otp-code">کد ۶ رقمی</label>
+                  <div className="auth-input-wrap"><input id="otp-code" className="mono" inputMode="numeric" autoComplete="one-time-code" required maxLength={6} value={otpCode} onChange={(e) => setOtpCode(e.target.value)} /></div>
+                </div>
+                <div className="flex-gap">
+                  <button type="button" className="btn btn-secondary" onClick={() => setOtpSent(false)}>تغییر شماره</button>
+                  <button type="submit" className="auth-submit" disabled={busy}>{busy ? 'در حال بررسی...' : 'تأیید و ورود'}</button>
+                </div>
+              </form>
+            )
+          )}
+
+          {mode === 'register' && (
+            <form className="auth-form auth-register-form" onSubmit={handleRegister}>
+              <div className="auth-field"><label htmlFor="reg-name">نام و نام خانوادگی</label><div className="auth-input-wrap"><input id="reg-name" autoComplete="name" required minLength={3} value={fullName} onChange={(e) => setFullName(e.target.value)} /></div></div>
+              <div className="auth-field"><label htmlFor="reg-phone">شماره موبایل</label><div className="auth-input-wrap"><input id="reg-phone" className="mono" type="tel" inputMode="numeric" autoComplete="tel" required placeholder="09121234567" value={phone} onChange={(e) => setPhone(e.target.value)} /></div></div>
+              <div className="auth-field"><label htmlFor="reg-email">رایانامه (اختیاری)</label><div className="auth-input-wrap"><input id="reg-email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} /></div></div>
+              <div className="auth-field"><label htmlFor="reg-pass">رمز عبور (حداقل ۸ نویسه)</label><div className="auth-input-wrap"><input id="reg-pass" type="password" autoComplete="new-password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} /></div></div>
+              <button type="submit" className="auth-submit" disabled={busy}>{busy ? 'در حال ایجاد حساب...' : 'ایجاد حساب کاربری'}<span aria-hidden="true">←</span></button>
+            </form>
+          )}
+
+          <div className="auth-signup-prompt">
+            {mode === 'register' ? <>حساب کاربری دارید؟ <button type="button" className="auth-text-link" onClick={() => setAuthMode('login')}>وارد شوید</button></> : <>هنوز حساب کاربری ندارید؟ <button type="button" className="auth-text-link" onClick={() => setAuthMode('register')}>ثبت‌نام کنید</button></>}
+          </div>
+          <p className="auth-security-note"><span aria-hidden="true">♢</span> امنیت اطلاعات شما برای ما اهمیت دارد</p>
+        </div>
+
+        <aside className="auth-promo-panel">
+          <Link to="/" className="auth-brand"><span className="auth-brand-mark" aria-hidden="true">✧</span><span>Central Mine</span></Link>
+          <div className="auth-promo-copy">
+            <span className="auth-promo-badge"><span aria-hidden="true">♢</span> تجربه‌ای امن و متفاوت</span>
+            <h2>ورود به دنیای<br />فرصت‌های تازه</h2>
+            <p>همه‌چیز از یک شروع مطمئن آغاز می‌شود. به حساب کاربری خود وارد شوید و تجربه‌ای ساده، سریع و دلنشین داشته باشید.</p>
+          </div>
+          <div className="auth-promo-footer"><span>طراحی اختصاصی سنترال ماین</span><span aria-hidden="true">●</span></div>
+          <span className="auth-orbit auth-orbit-one" aria-hidden="true" /><span className="auth-orbit auth-orbit-two" aria-hidden="true" />
+        </aside>
+      </section>
     </div>
   );
 }

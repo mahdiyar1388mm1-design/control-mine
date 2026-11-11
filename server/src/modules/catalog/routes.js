@@ -62,7 +62,7 @@ router.get('/admin/products', requireRole('admin'), (req, res) => {
 
 router.get('/admin/products/:slug', requireRole('admin', 'finance'), (req, res, next) => {
   try {
-    res.json({ product: catalog.productBySlug(req.params.slug, { includeCost: true }) });
+    res.json({ product: catalog.productBySlug(req.params.slug, { includeCost: true, includeInactive: true }) });
   } catch (err) { next(err); }
 });
 

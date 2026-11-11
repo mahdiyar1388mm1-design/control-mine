@@ -103,13 +103,14 @@ function listProducts(query) {
   };
 }
 
-function productBySlug(slug, { includeCost = false } = {}) {
+function productBySlug(slug, { includeCost = false, includeInactive = false } = {}) {
+  const statusFilter = includeInactive ? '' : " AND p.status = 'active'";
   const p = get(
     `SELECT p.*, c.name AS category_name, c.slug AS category_slug, b.name AS brand_name, b.slug AS brand_slug
        FROM products p
        LEFT JOIN categories c ON c.id = p.category_id
        LEFT JOIN brands b ON b.id = p.brand_id
-      WHERE p.slug = ? AND p.deleted_at IS NULL`,
+      WHERE p.slug = ? AND p.deleted_at IS NULL${statusFilter}`,
     [slug]
   );
   if (!p) throw ApiError.notFound('کالا یافت نشد.');
@@ -164,7 +165,7 @@ function createProduct(actor, input) {
     [id, data.name, slug, data.description, data.brand_id, data.category_id, data.status, data.image_path, now, now]
   );
   audit(actor.id, actor.role, 'catalog.create_product', 'product', id, { name: data.name });
-  return productBySlug(slug, { includeCost: true });
+  return productBySlug(slug, { includeCost: true, includeInactive: true });
 }
 
 function updateProduct(actor, id, input) {
@@ -186,7 +187,7 @@ function updateProduct(actor, id, input) {
       merged.image_path || null, nowIso(), id]
   );
   audit(actor.id, actor.role, 'catalog.update_product', 'product', id, { fields: Object.keys(data) });
-  return productBySlug(merged.slug, { includeCost: true });
+  return productBySlug(merged.slug, { includeCost: true, includeInactive: true });
 }
 
 function deleteProduct(actor, id) {
