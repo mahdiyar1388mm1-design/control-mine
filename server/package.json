@@ -1,0 +1,23 @@
+{
+  "name": "central-mine-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CENTRAL MINE - Persian e-commerce & services platform (API)",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "migrate": "node src/db/migrate.js",
+    "migrate:down": "node src/db/migrate.js down",
+    "seed": "node src/db/seed.js",
+    "backup": "node src/db/backup.js",
+    "test": "node --test 'tests/*.test.js'"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "multer": "^2.5.0"
+  }
+}
