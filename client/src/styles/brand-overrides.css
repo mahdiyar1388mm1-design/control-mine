@@ -1,0 +1,199 @@
+:root {
+  --cm-pink: #ec1e79;
+  --bg: #fff9fc;
+  --primary: #ec1e79;
+  --primary-hover: #be185d;
+  --primary-soft: #fce7f3;
+  --info: #be185d;
+  --info-soft: #fce7f3;
+}
+
+/* Replace the remaining blue interface accents with the pink-and-white brand palette */
+:focus-visible {
+  outline-color: #ec1e79;
+}
+::selection {
+  background: #fbcfe8;
+  color: #831843;
+}
+.brand-tag {
+  background: rgba(236, 30, 121, 0.18);
+  color: #fbcfe8;
+}
+.msg-item.operator {
+  background: #fff5fa;
+  border-color: #fbcfe8;
+}
+.auth-password-wrap {
+  background: #fff5fa;
+}
+
+/* When selling, keep the existing form on the wallet page directly below the Sell button. */
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) {
+  display: flex;
+  flex-direction: column;
+}
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > * {
+  order: 20;
+}
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > .lth-top-ticker-bar { order: 1; }
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > .lth-wallet-card { order: 2; }
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > .muted { order: 3; }
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > button.lth-outline-btn.pink-text { order: 4; }
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > section.card:has(input[placeholder="مثلاً 0.001"]) {
+  order: 5;
+  margin-top: 0;
+}
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > button.lth-outline-btn:not(.pink-text) { order: 6; }
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > .grid.grid-2 { order: 7; }
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > section.card:not(:has(form)):not(:has(h3)) { order: 8; }
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > .alert-inline { order: 9; }
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > section.card:has(h3) { order: 12; }
+
+/* Logos across the site: transparent brand image, no sticker frame, border, outline, shadow or white background */
+.cm-pink-header .cm-brand-mark,
+.cm-brand-mark,
+.lth-ticker-logo,
+.cm-home-brand-img,
+.brand-logo img,
+.cm-footer-logo {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  object-fit: contain !important;
+}
+
+/* Pink line icons */
+.cm-icon {
+  display: inline-block;
+  flex-shrink: 0;
+  vertical-align: -0.2em;
+}
+.nav-link .cm-icon,
+.mobile-nav-item .cm-icon,
+.btn .cm-icon,
+.badge .cm-icon {
+  vertical-align: middle;
+}
+.mobile-nav-item .cm-icon {
+  margin-bottom: 2px;
+}
+
+/* Clickable brand filters on the home product section */
+.home-brand-filter {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  margin: 8px 0 16px;
+  padding: 4px 2px 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+.home-brand-chip {
+  display: flex;
+  flex: 0 0 94px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  transition: transform 0.14s ease, border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease;
+}
+.home-brand-chip:hover {
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+.home-brand-chip.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary-hover);
+  box-shadow: 0 0 0 2px rgba(236, 30, 121, 0.08);
+}
+.home-brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #fce7f3, #fbcfe8);
+  color: #be185d;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0.2px;
+  direction: ltr;
+}
+.home-brand-chip.active .home-brand-mark {
+  background: var(--primary);
+  color: #ffffff;
+}
+.home-brand-name {
+  max-width: 100%;
+  overflow: hidden;
+  color: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Compact sale information card that stays on the home page */
+.home-sell-info {
+  width: min(100%, 480px);
+  margin: -2px auto 12px;
+  padding: 12px 14px;
+  border: 1px solid #fbcfe8;
+  border-radius: 14px;
+  background: #fff7fb;
+  box-shadow: 0 6px 18px rgba(190, 24, 93, 0.08);
+}
+.home-sell-info-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.home-sell-info-header h2 {
+  margin: 0;
+  color: #be185d;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+.home-sell-info > p {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.8;
+}
+.home-sell-info-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border: 1px solid #fbcfe8;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #be185d;
+  cursor: pointer;
+}
+.home-sell-info-close:hover {
+  background: #fce7f3;
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-brand-chip {
+    transition: none;
+  }
+}
