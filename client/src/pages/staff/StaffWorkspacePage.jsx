@@ -4,8 +4,8 @@ import { formatNumber, isStaffRole, ROLE_LABELS } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
 import { EmptyState, ErrorState, LoadingState } from '../../components/StateViews';
 import { FinanceReportsPanel, SupportTicketsPanel, WarehousePanel } from './SupportWarehouseFinancePanels';
-import { AdminManagementPanel } from './AdminManagementPanel';
 import { AdminLthPanel } from './AdminLthPanel';
+import { AdminConsolePanel } from './admin/AdminConsolePanel';
 
 export function StaffWorkspacePage() {
   const { user, authLoading } = useAuth();
@@ -73,6 +73,11 @@ export function StaffWorkspacePage() {
         error={{ status: 403, code: 'FORBIDDEN', message: 'حساب شما دارای نقش «مشتری» است و مجوز ورود به پنل‌های عملیاتی کارکنان را ندارد.' }}
       />
     );
+  }
+
+  // Managers get the dedicated, fully responsive control center.
+  if (user.role === 'admin') {
+    return <AdminConsolePanel />;
   }
 
   const q = overview?.queues || {};

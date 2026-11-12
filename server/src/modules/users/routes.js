@@ -60,7 +60,7 @@ function auditRefundAccountChange(req, addressId, before, after) {
 }
 
 router.get('/profile', (req, res) => {
-  const user = get('SELECT id, phone, email, full_name, role, status, created_at FROM users WHERE id = ?', [req.user.id]);
+  const user = get('SELECT id, phone, username, email, full_name, role, status, created_at FROM users WHERE id = ?', [req.user.id]);
   res.json({ user });
 });
 
@@ -91,7 +91,7 @@ router.patch('/profile', (req, res, next) => {
     if (data.phone && data.phone !== user.phone) {
       audit(req.user.id, req.user.role, 'user.change_phone', 'user', req.user.id, { from: user.phone, to: data.phone });
     }
-    res.json({ user: get('SELECT id, phone, email, full_name, role, status, created_at FROM users WHERE id = ?', [req.user.id]) });
+    res.json({ user: get('SELECT id, phone, username, email, full_name, role, status, created_at FROM users WHERE id = ?', [req.user.id]) });
   } catch (err) { next(err); }
 });
 

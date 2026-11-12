@@ -43,6 +43,7 @@ npm test
 4. [`docs/03-api.md`](docs/03-api.md) — قرارداد کامل API نسخهٔ ۱ (`/api/v1`)، خطاها، صفحه‌بندی و Idempotency
 5. [`docs/04-testing-and-seed.md`](docs/04-testing-and-seed.md) — راهنمای اجرای آزمون‌ها، جدول تطبیق ۲۰ سناریو و حساب‌های آزمایشی
 6. [`docs/05-deployment-backup-rollback.md`](docs/05-deployment-backup-rollback.md) — استقرار امن، پشتیبان‌گیری رمزنگاری‌شده و برنامهٔ Rollback
+7. [`docs/07-admin-console.md`](docs/07-admin-console.md) — مرکز کنترل مدیریت: محصولات، دفتر کاربران با شماره و نام کاربری، خزانهٔ خودکار، تنظیمات و ممیزی
 
 ---
 

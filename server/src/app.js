@@ -21,6 +21,7 @@ const supportRoutes = require('./modules/support/routes');
 const fileRoutes = require('./modules/files/routes');
 const notificationRoutes = require('./modules/notifications/routes');
 const adminRoutes = require('./modules/admin/routes');
+const adminConsoleRoutes = require('./modules/admin/console');
 const lthRoutes = require('./modules/lth/routes');
 
 const pkg = require('../package.json');
@@ -129,6 +130,7 @@ function createApp() {
   app.use('/api/v1', supportRoutes);
   app.use('/api/v1', fileRoutes);
   app.use('/api/v1', notificationRoutes);
+  app.use('/api/v1/admin/console', adminConsoleRoutes);
   app.use('/api/v1', adminRoutes);
   app.use('/api/v1', lthRoutes);
 

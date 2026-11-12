@@ -15,6 +15,7 @@ function publicUser(row) {
   return {
     id: row.id,
     phone: row.phone,
+    username: row.username || null,
     full_name: row.full_name,
     email: row.email || null,
     role: row.role,
@@ -50,9 +51,16 @@ function register(input) {
   const { passwordHash, passwordSalt } = hashPassword(data.password);
   const now = nowIso();
   const id = uuid();
+  const baseUsername = `cm${data.phone.replace(/\D/g, '').replace(/^0/, '')}`;
+  let username = baseUsername;
+  let suffix = 1;
+  while (get('SELECT 1 AS x FROM users WHERE username = ?', [username])) {
+    username = `${baseUsername}${suffix}`;
+    suffix += 1;
+  }
   run(
-    'INSERT INTO users (id, phone, email, full_name, password_hash, password_salt, role, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [id, data.phone, data.email, data.full_name, passwordHash, passwordSalt, 'customer', 'active', now, now]
+    'INSERT INTO users (id, phone, email, full_name, username, password_hash, password_salt, role, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [id, data.phone, data.email, data.full_name, username, passwordHash, passwordSalt, 'customer', 'active', now, now]
   );
   notify(id, 'welcome', 'به CENTRAL MINE خوش آمدید', 'حساب شما ساخته شد. اکنون می‌توانید خرید یا ثبت درخواست خدمت کنید.', '/');
   const session = createSession(id, input.user_agent);

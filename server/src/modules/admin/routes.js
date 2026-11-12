@@ -101,8 +101,8 @@ router.get('/admin/users', requireRole('admin'), (req, res, next) => {
       params.push(req.query.status);
     }
     if (req.query.q) {
-      where.push('(full_name LIKE ? OR phone LIKE ?)');
-      params.push(`%${req.query.q}%`, `%${req.query.q}%`);
+      where.push('(full_name LIKE ? OR phone LIKE ? OR username LIKE ?)');
+      params.push(`%${req.query.q}%`, `%${req.query.q}%`, `%${req.query.q}%`);
     }
     const revealPhone = req.query.reveal_phone === '1';
     if (revealPhone) {
@@ -110,7 +110,7 @@ router.get('/admin/users', requireRole('admin'), (req, res, next) => {
     }
     const whereSql = where.join(' AND ');
     const rows = all(
-      `SELECT id, phone, email, full_name, role, status, created_at, updated_at
+      `SELECT id, phone, username, email, full_name, role, status, created_at, updated_at
          FROM users WHERE ${whereSql} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
       [...params, limit, offset]
     );
@@ -119,6 +119,7 @@ router.get('/admin/users', requireRole('admin'), (req, res, next) => {
       items: rows.map((u) => ({
         id: u.id,
         phone: revealPhone ? u.phone : maskPhone(u.phone),
+        username: u.username || null,
         email: u.email,
         full_name: u.full_name,
         role: u.role,
@@ -171,7 +172,7 @@ router.patch('/admin/users/:id', requireRole('admin'), (req, res, next) => {
       });
     });
 
-    const updated = get('SELECT id, phone, email, full_name, role, status, created_at, updated_at FROM users WHERE id = ?', [target.id]);
+    const updated = get('SELECT id, phone, username, email, full_name, role, status, created_at, updated_at FROM users WHERE id = ?', [target.id]);
     res.json({ user: { ...updated, phone: maskPhone(updated.phone) } });
   } catch (err) { next(err); }
 });

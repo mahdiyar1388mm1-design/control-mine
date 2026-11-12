@@ -5,6 +5,7 @@ import '@fontsource/vazirmatn/500.css';
 import '@fontsource/vazirmatn/700.css';
 import './styles/global.css';
 import './styles/brand-overrides.css';
+import './styles/admin-console.css';
 import App from './App';
 import { installEmojiScrubber } from './lib/stripEmoji';
 

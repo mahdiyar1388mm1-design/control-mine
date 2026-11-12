@@ -268,6 +268,9 @@ function AccountLayout({ active, title, subtitle, children }) {
           <div style={{ minWidth: 0 }}>
             <strong style={{ display: 'block' }}>{user.full_name}</strong>
             <span className="muted mono" style={{ fontSize: '0.82rem' }}>{user.phone}</span>
+            {user.username && (
+              <span className="muted" style={{ display: 'block', fontSize: '0.74rem', direction: 'ltr' }}>@{user.username}</span>
+            )}
           </div>
         </div>
         <nav className="account-menu">
