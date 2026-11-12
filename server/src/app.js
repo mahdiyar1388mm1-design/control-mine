@@ -9,6 +9,7 @@ const { requestId } = require('./middleware/requestId');
 const { parseCookies, attachUser } = require('./middleware/auth');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 const { ApiError } = require('./utils/errors');
+const logger = require('./utils/logger');
 
 const authRoutes = require('./modules/auth/routes');
 const userRoutes = require('./modules/users/routes');
@@ -32,6 +33,25 @@ function createApp() {
   app.set('trust proxy', 1);
 
   app.use(requestId);
+
+  // Lightweight access log (skips static assets) so proxy/preview traffic stays visible in container logs.
+  app.use((req, res, next) => {
+    const p = req.path;
+    if (p.startsWith('/assets/') || p.startsWith('/uploads/') || p === '/favicon.ico') return next();
+    const startedAt = process.hrtime.bigint();
+    res.on('finish', () => {
+      logger.info('http', {
+        method: req.method,
+        path: (req.originalUrl || p).split('?')[0],
+        status: res.statusCode,
+        ms: Math.round(Number(process.hrtime.bigint() - startedAt) / 1e6),
+        requestId: req.id,
+        host: req.header('x-forwarded-host') || req.header('host') || null,
+        referer: req.header('referer') || null
+      });
+    });
+    next();
+  });
 
   // Baseline security headers (iframe-friendly unless CM_DENY_IFRAME=1 for standalone prod).
   app.use((req, res, next) => {
