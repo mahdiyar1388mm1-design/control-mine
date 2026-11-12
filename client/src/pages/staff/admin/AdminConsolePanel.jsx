@@ -370,6 +370,13 @@ export function AdminConsolePanel() {
         {tab === 'settings' && <SettingsPanel />}
         {tab === 'audit' && <AuditPanel />}
       </main>
+
+      {tab !== 'products' && (
+        <button type="button" className="ac-fab" onClick={createProduct} title="افزودن محصول جدید">
+          <Icon name="plus" size={20} color="#fff" />
+          <span>محصول جدید</span>
+        </button>
+      )}
     </div>
   );
 }

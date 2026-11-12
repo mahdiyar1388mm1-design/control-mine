@@ -1282,6 +1282,30 @@
 
 .ac-spin { animation: ac-spin 0.9s linear infinite; }
 
+/* Floating quick-add product button (available from every console section) */
+.ac-fab {
+  position: fixed;
+  inset-inline-end: 26px;
+  bottom: 26px;
+  z-index: 60;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f72585, #ec1e79 60%, #d6186c);
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 16px 34px rgba(236, 30, 121, 0.36);
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+.ac-fab:hover { transform: translateY(-2px); box-shadow: 0 20px 40px rgba(236, 30, 121, 0.44); }
+.ac-fab:active { transform: scale(0.97); }
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 1180px) {
@@ -1353,6 +1377,10 @@
   .ac-modal-head, .ac-modal-body, .ac-modal-foot { padding-inline: 15px; }
   .ac-audit-row { flex-wrap: wrap; }
   .ac-audit-row time { margin-inline-start: 42px; }
+}
+
+@media (max-width: 1000px) {
+  .ac-fab { bottom: 88px; inset-inline-end: 16px; padding: 11px 15px; }
 }
 
 @media (max-width: 520px) {
