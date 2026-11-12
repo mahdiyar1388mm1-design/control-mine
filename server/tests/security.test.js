@@ -488,8 +488,12 @@ test('security: TOTP enrollment, challenge login, replay defence and recovery co
   assert.equal(wrong.status, 401);
 
   // Correct code completes the login (the enrollment step itself is already spent).
+  // One code string is captured and reused on purpose: the replay assertions below
+  // must present the *same* code, and regenerating it could silently move to a new
+  // 30-second window and make the test time-dependent.
+  const goodCode = nextTotpCode(setup.data.secret);
   const good = await api('/api/v1/auth/mfa/verify', {
-    method: 'POST', body: { challenge_token: challengeToken, code: nextTotpCode(setup.data.secret) }
+    method: 'POST', body: { challenge_token: challengeToken, code: goodCode }
   });
   assert.equal(good.status, 200, JSON.stringify(good.data));
   assert.ok(good.data.token);
@@ -498,7 +502,7 @@ test('security: TOTP enrollment, challenge login, replay defence and recovery co
 
   // A challenge token is single-use.
   const reuse = await api('/api/v1/auth/mfa/verify', {
-    method: 'POST', body: { challenge_token: challengeToken, code: nextTotpCode(setup.data.secret) }
+    method: 'POST', body: { challenge_token: challengeToken, code: goodCode }
   });
   assert.equal(reuse.status, 401);
 
@@ -507,7 +511,7 @@ test('security: TOTP enrollment, challenge login, replay defence and recovery co
     method: 'POST', body: { phone: user, password: 'Titan#Shield2027' }
   });
   const replay = await api('/api/v1/auth/mfa/verify', {
-    method: 'POST', body: { challenge_token: secondChallenge.data.challenge_token, code: nextTotpCode(setup.data.secret) }
+    method: 'POST', body: { challenge_token: secondChallenge.data.challenge_token, code: goodCode }
   });
   assert.equal(replay.status, 401, 'a used TOTP step cannot authorise a second login');
 
@@ -697,4 +701,38 @@ test('security: break-glass MFA reset is step-up protected, reason-bound and rev
   const entry = get("SELECT detail FROM audit_log WHERE action = 'admin.mfa_reset' ORDER BY rowid DESC LIMIT 1");
   assert.ok(entry && entry.detail.includes('mfa_reset') === false && entry.detail.includes('کاربر دسترسی'));
   assert.equal(verifyAuditChain().ok, true);
+});
+
+test('security: cookie sessions work end-to-end with the double-submit pair (upload path)', async () => {
+  // Regression: the admin image upload used a bare fetch() without the CSRF header,
+  // so a valid cookie session got "توکن امنیتی درخواست نامعتبر است (CSRF)".
+  // This test proves the browser contract: login sets both cookies, the SPA echoes
+  // cm_csrf in x-csrf-token, and cookie-authenticated mutations succeed.
+  const login = await fetch(`${baseUrl}/api/v1/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone: '09120000001', password: 'Cm@Test1405!' })
+  });
+  assert.equal(login.status, 200);
+  const setCookies = login.headers.getSetCookie ? login.headers.getSetCookie() : [];
+  const cookieHeader = setCookies.map((c) => c.split(';')[0]).join('; ');
+  const csrf = /cm_csrf=([^;]+)/.exec(cookieHeader);
+  assert.ok(csrf, `login must set the csrf cookie: ${cookieHeader}`);
+
+  const form = new FormData();
+  form.append('alt_text', 'آزمون CSRF');
+  form.append('images', new Blob([Buffer.from('%PDF-1.4 not an image')], { type: 'image/png' }), 'fake.png');
+
+  const withoutHeader = await fetch(`${baseUrl}/api/v1/admin/products/demo/images`, {
+    method: 'POST', headers: { Cookie: cookieHeader }, body: form
+  });
+  assert.equal(withoutHeader.status, 403);
+  assert.match(JSON.stringify(await withoutHeader.json()), /CSRF/);
+
+  // Same request with the token echoed (what the SPA now always does) reaches the
+  // route and is rejected for the file signature, not for CSRF.
+  const withHeader = await fetch(`${baseUrl}/api/v1/admin/products/demo/images`, {
+    method: 'POST', headers: { Cookie: cookieHeader, 'x-csrf-token': csrf[1] }, body: form
+  });
+  assert.notEqual(withHeader.status, 403, 'a valid double-submit pair must pass the CSRF gate');
 });

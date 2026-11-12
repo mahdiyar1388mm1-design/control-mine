@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { apiFetch } from '../../lib/api';
+import { apiFetch, authFetch } from '../../lib/api';
 import { formatMoney, formatNumber } from '../../lib/format';
 import { ConfirmDialog, ErrorState, FieldErrorsList, LoadingState, StatusBadge } from '../../components/StateViews';
 
@@ -149,10 +149,10 @@ export function AdminCatalogPanel() {
     setOpErr(null);
     setMsg('');
     try {
-      const res = await fetch(`/api/v1/admin/products/${detail.id}/images`, {
+      // authFetch keeps the bearer token and echoes the double-submit CSRF token.
+      const res = await authFetch(`/api/v1/admin/products/${detail.id}/images`, {
         method: 'POST',
-        body: fd,
-        credentials: 'include'
+        body: fd
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw Object.assign(new Error(data?.error?.message || 'آپلود تصویر ناموفق بود.'), { details: data?.error?.details });

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { apiFetch, getStoredToken } from '../../../lib/api';
+import { apiFetch, authFetch } from '../../../lib/api';
 import { formatMoney, formatNumber } from '../../../lib/format';
 import { Icon } from '../../../components/Icon';
 import {
@@ -50,12 +50,10 @@ async function uploadImages(productId, files, altText) {
   const fd = new FormData();
   files.forEach((file) => fd.append('images', file));
   fd.append('alt_text', altText || '');
-  const token = getStoredToken();
-  const res = await fetch(`/api/v1/admin/products/${productId}/images`, {
+  // authFetch adds both the bearer token and the CSRF header required for cookie sessions.
+  const res = await authFetch(`/api/v1/admin/products/${productId}/images`, {
     method: 'POST',
-    body: fd,
-    credentials: 'include',
-    headers: token ? { Authorization: `Bearer ${token}` } : {}
+    body: fd
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.error?.message || 'آپلود تصویر ناموفق بود.');

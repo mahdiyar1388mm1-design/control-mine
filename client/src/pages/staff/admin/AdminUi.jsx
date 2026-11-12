@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { apiFetch, getStoredToken } from '../../../lib/api';
+import { apiFetch, authFetch } from '../../../lib/api';
 import { formatMoney, formatNumber } from '../../../lib/format';
 import { Icon } from '../../../components/Icon';
 import { ErrorState, LoadingState } from '../../../components/StateViews';
@@ -278,11 +278,7 @@ export function Pagination({ page, limit, total, onChange }) {
 }
 
 export function downloadCsv(path, filename) {
-  const token = getStoredToken();
-  return fetch(`/api/v1${path}`, {
-    credentials: 'include',
-    headers: token ? { Authorization: `Bearer ${token}` } : {}
-  })
+  return authFetch(`/api/v1${path}`)
     .then((res) => {
       if (!res.ok) throw new Error('دانلود فایل ناموفق بود.');
       return res.blob();

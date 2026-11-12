@@ -258,3 +258,22 @@ export async function downloadPrivateFile(fileId, fallbackName = 'document') {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
+
+/**
+ * Raw fetch for uploads/CSV downloads that must NOT go through apiFetch
+ * (FormData bodies, binary responses). It still has to carry the session:
+ * `credentials: 'include'` sends the httpOnly cookie, and any state-changing
+ * call must also echo the double-submit CSRF token, otherwise the server
+ * (correctly) answers 403 "توکن امنیتی درخواست نامعتبر است (CSRF)".
+ */
+export function authFetch(input, init = {}) {
+  const method = (init.method || 'GET').toUpperCase();
+  const headers = { ...(init.headers || {}) };
+  const token = getStoredToken();
+  if (token && !headers.Authorization) headers.Authorization = `Bearer ${token}`;
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+    const csrf = csrfHeaderValue();
+    if (csrf) headers['X-CSRF-Token'] = csrf;
+  }
+  return fetch(input, { ...init, headers, credentials: 'include' });
+}
