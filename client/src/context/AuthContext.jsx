@@ -136,6 +136,8 @@ export function AuthProvider({ children }) {
   const logoutEverywhere = async () => {
     let res = null;
     let ok = false;
+    // `finally` reads this flag, so the success path must copy the value first:
+    // a return value assigned in its own try/finally is not observable here.
     try {
       res = await apiFetch('/auth/logout-all', { method: 'POST' });
       ok = true;
