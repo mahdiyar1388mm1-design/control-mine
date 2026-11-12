@@ -56,7 +56,7 @@ export function AuthProvider({ children }) {
     // Second factor pending: no session yet, the UI must ask for the code.
     if (res.mfa_required) return res;
     storeSessionTokens(res);
-    await ensureCsrfToken();
+    await ensureCsrfToken({ force: true });
     setUser(res.user);
     await refreshCounts();
     return res;
@@ -71,7 +71,7 @@ export function AuthProvider({ children }) {
         : { challenge_token: challengeToken, code }
     });
     storeSessionTokens(res);
-    await ensureCsrfToken();
+    await ensureCsrfToken({ force: true });
     setUser(res.user);
     await refreshCounts();
     return res;
@@ -83,7 +83,7 @@ export function AuthProvider({ children }) {
       body: { phone, full_name, password, email: email || undefined }
     });
     storeSessionTokens(res);
-    await ensureCsrfToken();
+    await ensureCsrfToken({ force: true });
     setUser(res.user);
     await refreshCounts();
     return res;
@@ -102,11 +102,19 @@ export function AuthProvider({ children }) {
       body: { phone, code }
     });
     storeSessionTokens(res);
-    await ensureCsrfToken();
+    await ensureCsrfToken({ force: true });
     setUser(res.user);
     await refreshCounts();
     return res;
   };
+
+  /** Local teardown only — used when the session is already gone server-side. */
+  const forgetSession = useCallback(() => {
+    clearSessionTokens();
+    setUser(null);
+    setCartCount(0);
+    setUnreadCount(0);
+  }, []);
 
   const logout = async () => {
     try {
@@ -114,20 +122,30 @@ export function AuthProvider({ children }) {
     } catch {
       /* session may already be expired */
     } finally {
-      clearSessionTokens();
-      setUser(null);
-      setCartCount(0);
-      setUnreadCount(0);
+      // Always drop the bearer, the refresh token and the (often stale) CSRF copy,
+      // otherwise the next visitor of this tab inherits a half-broken pair.
+      forgetSession();
     }
   };
 
-  /** Closes every other device session and keeps the current one. */
+  /**
+   * Closes every other device session and keeps the current one.
+   * If the current session was one of the revoked ones (or expired), the local
+   * state is torn down so the UI leaves the account area instead of looping 401s.
+   */
   const logoutEverywhere = async () => {
+    let res = null;
+    let ok = false;
     try {
-      const res = await apiFetch('/auth/logout-all', { method: 'POST' });
+      res = await apiFetch('/auth/logout-all', { method: 'POST' });
+      ok = true;
       return res;
     } finally {
-      await refreshMe();
+      if (ok) {
+        await refreshMe();
+      } else {
+        forgetSession();
+      }
     }
   };
 
@@ -149,6 +167,7 @@ export function AuthProvider({ children }) {
       verifyOtp,
       logout,
       logoutEverywhere,
+      forgetSession,
       verifyIdentity,
       refreshMe,
       refreshCounts

@@ -736,3 +736,48 @@ test('security: cookie sessions work end-to-end with the double-submit pair (upl
   });
   assert.notEqual(withHeader.status, 403, 'a valid double-submit pair must pass the CSRF gate');
 });
+
+test('security: a stale session cookie can never lock a user out (CSRF recovery paths)', async () => {
+  // Regression for a real lockout: with `cm_token` still present but `cm_csrf`
+  // missing, CSRF protection used to reject even POST /auth/login, so the user
+  // could not sign in again from the UI and kept seeing
+  // "توکن امنیتی درخواست نامعتبر است (CSRF)".
+  const login = await fetch(`${baseUrl}/api/v1/auth/login`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone: '09120000010', password: 'Cm@Test1405!' })
+  });
+  const staleToken = (login.headers.getSetCookie() || [])
+    .map((c) => c.split(';')[0])
+    .find((c) => c.startsWith('cm_token='));
+  assert.ok(staleToken, 'login sets the session cookie');
+
+  // Only the session cookie, no CSRF cookie, no header: logging in again must work.
+  const relogin = await fetch(`${baseUrl}/api/v1/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: staleToken },
+    body: JSON.stringify({ phone: '09120000010', password: 'Cm@Test1405!' })
+  });
+  assert.equal(relogin.status, 200, 're-login with a stale cookie must not be blocked by CSRF');
+
+  // Refresh carries its own proof (the httpOnly refresh cookie), so it is reachable too.
+  const jar = (login.headers.getSetCookie() || []).map((c) => c.split(';')[0]).join('; ');
+  const refresh = await fetch(`${baseUrl}/api/v1/auth/refresh`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: jar }, body: '{}'
+  });
+  assert.equal(refresh.status, 200, 'the refresh endpoint recovers a cookie-only session');
+
+  // Logout keeps the header requirement: forced logout via CSRF must stay blocked.
+  const forcedLogout = await fetch(`${baseUrl}/api/v1/auth/logout`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: jar }, body: '{}'
+  });
+  assert.equal(forcedLogout.status, 403);
+
+  // Real mutations are still guarded: no CSRF pair, no write.
+  const write = await fetch(`${baseUrl}/api/v1/cart/items`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: jar },
+    body: JSON.stringify({ sku_id: 'x', quantity: 1 })
+  });
+  assert.equal(write.status, 403);
+  assert.match(JSON.stringify(await write.json()), /CSRF/);
+});

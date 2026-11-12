@@ -1,36 +1,28 @@
+/**
+ * Central API client.
+ *
+ * Design rules (security-relevant, do not "simplify" these away):
+ *  - Only relative `/api/v1` URLs. The SPA is always served by the same origin,
+ *    so a preview/proxy host works without any allowlist.
+ *  - Cookie sessions are protected by the double-submit CSRF scheme: the server
+ *    sets `cm_csrf` (readable by JS) and every state-changing request must echo
+ *    it in `x-csrf-token`. Bearer-token requests are exempt server-side.
+ *  - The refresh endpoint is special: it is a state-changing POST that can only
+ *    be authorised by the httpOnly refresh cookie, so the browser cannot send a
+ *    Bearer token for it. It must therefore always carry the CSRF header, and it
+ *    must never block the retry loop when the token is missing — instead the
+ *    token is fetched on demand and the call is repeated exactly once.
+ */
 import { formatPersianDigits } from './format';
 
-/**
- * Central API client (§1.3, §5, §14, §16):
- * - Always uses relative /api/v1 paths (never localhost).
- * - Preserves structured error codes (NETWORK_ERROR, UNAUTHORIZED, FORBIDDEN, VALIDATION_ERROR, etc.).
- * - Never masks server failures as empty or zero values.
- * - Sends the double-submit CSRF token on state-changing cookie-auth requests.
- * - Transparently refreshes the session once on 401 before surfacing the error.
- */
-
+const API_BASE = '/api/v1';
 const TOKEN_KEY = 'cm_session_token';
 const REFRESH_KEY = 'cm_refresh_token';
 const CSRF_KEY = 'cm_csrf_token';
-const FORMATTED_CURRENCY_KEY = /(?:irr|toman).*formatted|formatted.*(?:irr|toman)/i;
-
-function localizeFormattedCurrency(value) {
-  if (Array.isArray(value)) {
-    return value.map((item) => localizeFormattedCurrency(item));
-  }
-  if (!value || typeof value !== 'object') return value;
-
-  return Object.fromEntries(Object.entries(value).map(([key, item]) => [
-    key,
-    FORMATTED_CURRENCY_KEY.test(key) && typeof item === 'string'
-      ? formatPersianDigits(item)
-      : localizeFormattedCurrency(item)
-  ]));
-}
 
 function readStore(key) {
   try {
-    return localStorage.getItem(key);
+    return window.localStorage.getItem(key);
   } catch {
     return null;
   }
@@ -38,10 +30,10 @@ function readStore(key) {
 
 function writeStore(key, value) {
   try {
-    if (value) localStorage.setItem(key, value);
-    else localStorage.removeItem(key);
+    if (value === null || value === undefined) window.localStorage.removeItem(key);
+    else window.localStorage.setItem(key, value);
   } catch {
-    /* ignore storage quota errors */
+    /* private mode / quota: the cookie session still works */
   }
 }
 
@@ -83,6 +75,11 @@ export class ClientApiError extends Error {
     this.details = Array.isArray(details) ? details : [];
     this.requestId = requestId || null;
   }
+
+  /** True for the server's "توکن امنیتی درخواست نامعتبر است (CSRF)" answer. */
+  get isCsrfError() {
+    return this.status === 403 && /CSRF/i.test(this.message || '');
+  }
 }
 
 export function newIdempotencyKey(prefix = 'cm') {
@@ -92,20 +89,77 @@ export function newIdempotencyKey(prefix = 'cm') {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+// ---------------------------------------------------------------------------
+// CSRF token lifecycle
+// ---------------------------------------------------------------------------
+
+let csrfInFlight = null;
+
+/**
+ * Fetches the double-submit token. The server also sets the `cm_csrf` cookie, so
+ * afterwards both the cookie and the stored copy agree. `force` bypasses the
+ * cache and is used after a rejected request (stale cookie after switching tabs).
+ */
+export async function ensureCsrfToken({ force = false } = {}) {
+  if (!force) {
+    const existing = csrfHeaderValue();
+    if (existing) return existing;
+  }
+  if (csrfInFlight) return csrfInFlight;
+  csrfInFlight = (async () => {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const res = await fetch(`${API_BASE}/auth/csrf`, {
+          credentials: 'include',
+          headers: { 'X-CM-Client': 'web' }
+        });
+        if (res.ok) {
+          const data = await res.json().catch(() => null);
+          if (data && data.csrf_token) {
+            setCsrfToken(data.csrf_token);
+            return data.csrf_token;
+          }
+        }
+      } catch {
+        /* network hiccup: retry once, then give up */
+      }
+    }
+    return null;
+  })().finally(() => { csrfInFlight = null; });
+  return csrfInFlight;
+}
+
+// ---------------------------------------------------------------------------
+// Refresh (rotating, single-flight)
+// ---------------------------------------------------------------------------
+
 let refreshInFlight = null;
 
 /** Rotates the refresh token once; concurrent 401s share the same call. */
 async function refreshSession() {
   if (refreshInFlight) return refreshInFlight;
-  const refreshToken = getRefreshToken();
-  const body = refreshToken ? JSON.stringify({ refresh_token: refreshToken }) : undefined;
   refreshInFlight = (async () => {
-    const res = await fetch('/api/v1/auth/refresh', {
+    const refreshToken = getRefreshToken();
+    const body = refreshToken ? JSON.stringify({ refresh_token: refreshToken }) : undefined;
+    // The CSRF header is mandatory here (cookie-only authentication path).
+    let csrf = await ensureCsrfToken();
+    const attempt = () => fetch(`${API_BASE}/auth/refresh`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CM-Client': 'web' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CM-Client': 'web',
+        ...(csrf ? { 'X-CSRF-Token': csrf } : {})
+      },
       body,
       credentials: 'include'
     });
+
+    let res = await attempt();
+    if (res.status === 403 && /CSRF/i.test(await res.clone().text().catch(() => ''))) {
+      // Stale cookie (e.g. logged in from another tab): refetch and retry once.
+      csrf = await ensureCsrfToken({ force: true });
+      if (csrf) res = await attempt();
+    }
     if (!res.ok) return null;
     let data = null;
     try { data = await res.json(); } catch { data = null; }
@@ -119,31 +173,57 @@ async function refreshSession() {
   return refreshInFlight;
 }
 
-async function doFetch(path, { method, body, headers, idempotencyKey, signal }) {
+// ---------------------------------------------------------------------------
+// Core request
+// ---------------------------------------------------------------------------
+
+function buildHeaders({ method, headers, idempotencyKey, csrf }) {
   const reqHeaders = { 'X-CM-Client': 'web', ...headers };
   const token = getStoredToken();
   if (token && !reqHeaders.Authorization) reqHeaders.Authorization = `Bearer ${token}`;
   if (idempotencyKey) reqHeaders['Idempotency-Key'] = idempotencyKey;
-  if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
-    const csrf = csrfHeaderValue();
-    if (csrf) reqHeaders['X-CSRF-Token'] = csrf;
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && csrf) {
+    reqHeaders['X-CSRF-Token'] = csrf;
   }
+  return reqHeaders;
+}
 
-  let fetchBody;
-  if (body instanceof FormData) {
-    fetchBody = body;
-  } else if (body !== undefined) {
-    reqHeaders['Content-Type'] = 'application/json';
-    fetchBody = JSON.stringify(body);
+async function doFetch(path, { method, body, headers, idempotencyKey, signal }) {
+  const isForm = body instanceof FormData;
+  const sameOriginOnly = !['GET', 'HEAD', 'OPTIONS'].includes(method);
+  let csrf = sameOriginOnly ? csrfHeaderValue() : '';
+  if (sameOriginOnly && !csrf) csrf = await ensureCsrfToken();
+
+  const send = () => {
+    const reqHeaders = buildHeaders({ method, headers, idempotencyKey, csrf });
+    let fetchBody;
+    if (isForm) {
+      fetchBody = body;
+    } else if (body !== undefined) {
+      reqHeaders['Content-Type'] = 'application/json';
+      fetchBody = JSON.stringify(body);
+    }
+    return fetch(`${API_BASE}${path}`, {
+      method,
+      headers: reqHeaders,
+      body: fetchBody,
+      credentials: 'include',
+      signal
+    });
+  };
+
+  const res = await send();
+  // A rejected double-submit usually means our copy is stale (other tab, cookie
+  // cleared, session rotated). Refresh it once and repeat instead of showing the
+  // user a confusing 403.
+  if (res.status === 403 && sameOriginOnly) {
+    const text = await res.clone().text().catch(() => '');
+    if (/CSRF/i.test(text)) {
+      csrf = await ensureCsrfToken({ force: true });
+      if (csrf) return send();
+    }
   }
-
-  return fetch(`/api/v1${path}`, {
-    method,
-    headers: reqHeaders,
-    body: fetchBody,
-    credentials: 'include',
-    signal
-  });
+  return res;
 }
 
 export async function apiFetch(path, { method = 'GET', body, headers = {}, idempotencyKey, signal, retry = true } = {}) {
@@ -181,10 +261,20 @@ export async function apiFetch(path, { method = 'GET', body, headers = {}, idemp
 
   if (!res.ok) {
     const errObj = (parsed && parsed.error) || {};
+    const isCsrf = res.status === 403 && /CSRF/i.test(errObj.message || '');
+    if (isCsrf && retry) {
+      // Last resort after the automatic token refetch failed: drop the stale
+      // cookies/tokens once and repeat. The user should never have to know that
+      // a half-deleted cookie pair was the problem.
+      await recoverSession();
+      return apiFetch(path, { method, body, headers, idempotencyKey, signal, retry: false });
+    }
     throw new ClientApiError({
       status: res.status,
       code: errObj.code || (res.status >= 500 ? 'SERVER_ERROR' : 'HTTP_ERROR'),
-      message: errObj.message || (res.status >= 500 ? 'خطای داخلی سرور رخ داد.' : 'درخواست انجام نشد.'),
+      message: isCsrf
+        ? CSRF_HELP_TEXT
+        : (errObj.message || (res.status >= 500 ? 'خطای داخلی سرور رخ داد.' : 'درخواست انجام نشد.')),
       details: errObj.details,
       requestId: errObj.requestId
     });
@@ -193,87 +283,104 @@ export async function apiFetch(path, { method = 'GET', body, headers = {}, idemp
   return localizeFormattedCurrency(parsed);
 }
 
-/** Fetches (and caches) a double-submit CSRF token for cookie-based sessions. */
-export async function ensureCsrfToken() {
-  try {
-    const res = await fetch('/api/v1/auth/csrf', { credentials: 'include', headers: { 'X-CM-Client': 'web' } });
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (data && data.csrf_token) setCsrfToken(data.csrf_token);
-    return data ? data.csrf_token : null;
-  } catch {
-    return null;
-  }
-}
-
-/** Stores the token pair returned by login/register/otp/refresh. */
-export function storeSessionTokens(res) {
-  if (!res) return;
-  if (res.token) setStoredToken(res.token);
-  if (res.refreshToken) setRefreshToken(res.refreshToken);
-}
-
-export function clearSessionTokens() {
-  setStoredToken(null);
-  writeStore(REFRESH_KEY, null);
-  writeStore(CSRF_KEY, null);
-}
-
-export async function downloadPrivateFile(fileId, fallbackName = 'document') {
-  const headers = { 'X-CM-Client': 'web' };
-  const token = getStoredToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
-
-  let res;
-  try {
-    res = await fetch(`/api/v1/files/${encodeURIComponent(fileId)}`, {
-      method: 'GET',
-      headers,
-      credentials: 'include'
-    });
-  } catch {
-    throw new ClientApiError({
-      status: 0,
-      code: 'NETWORK_ERROR',
-      message: 'دانلود فایل به دلیل خطای شبکه انجام نشد.'
-    });
-  }
-
-  if (!res.ok) {
-    let errMsg = 'دسترسی به این فایل مجاز نیست یا فایل یافت نشد.';
-    try {
-      const data = await res.json();
-      if (data && data.error && data.error.message) errMsg = data.error.message;
-    } catch { /* ignore */ }
-    throw new ClientApiError({ status: res.status, code: 'FILE_ERROR', message: errMsg });
-  }
-
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fallbackName;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
-}
-
 /**
  * Raw fetch for uploads/CSV downloads that must NOT go through apiFetch
  * (FormData bodies, binary responses). It still has to carry the session:
  * `credentials: 'include'` sends the httpOnly cookie, and any state-changing
- * call must also echo the double-submit CSRF token, otherwise the server
- * (correctly) answers 403 "توکن امنیتی درخواست نامعتبر است (CSRF)".
+ * call must also echo the double-submit CSRF token.
  */
 export function authFetch(input, init = {}) {
   const method = (init.method || 'GET').toUpperCase();
   const headers = { ...(init.headers || {}) };
   const token = getStoredToken();
   if (token && !headers.Authorization) headers.Authorization = `Bearer ${token}`;
-  if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
-    const csrf = csrfHeaderValue();
-    if (csrf) headers['X-CSRF-Token'] = csrf;
-  }
+  const needsCsrf = !['GET', 'HEAD', 'OPTIONS'].includes(method);
+  const csrf = needsCsrf ? csrfHeaderValue() : '';
+  if (csrf) headers['X-CSRF-Token'] = csrf;
   return fetch(input, { ...init, headers, credentials: 'include' });
 }
+
+/** Stores the token pair returned by login/register/otp/refresh. */
+export function storeSessionTokens(data) {
+  if (!data) return;
+  if (data.token) setStoredToken(data.token);
+  if (data.refreshToken) setRefreshToken(data.refreshToken);
+}
+
+/** Clears every local trace of the session (call on logout/401 everywhere). */
+export function clearSessionTokens() {
+  writeStore(TOKEN_KEY, null);
+  writeStore(REFRESH_KEY, null);
+  writeStore(CSRF_KEY, null);
+}
+
+/** Downloads a private file with the current session (Bearer or cookie). */
+export async function downloadPrivateFile(path, filename) {
+  const res = await authFetch(`${API_BASE}${path}`);
+  if (!res.ok) throw new ClientApiError({ status: res.status, message: 'دانلود فایل ناموفق بود.' });
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  return true;
+}
+
+/**
+ * Persian-digit localisation of pre-formatted money strings coming from the API.
+ * Kept here because every response passes through apiFetch.
+ */
+const FORMATTED_CURRENCY_KEY = /(?:irr|toman).*formatted|formatted.*(?:irr|toman)/i;
+
+function localizeFormattedCurrency(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => localizeFormattedCurrency(item));
+  }
+  if (!value || typeof value !== 'object') return value;
+
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [
+    key,
+    FORMATTED_CURRENCY_KEY.test(key) && typeof item === 'string'
+      ? formatPersianDigits(item)
+      : localizeFormattedCurrency(item)
+  ]));
+}
+
+// ---------------------------------------------------------------------------
+// Stale-cookie recovery
+// ---------------------------------------------------------------------------
+
+/** Drops every auth cookie the browser holds for this origin (best effort). */
+function clearAuthCookies() {
+  const cookies = String(document.cookie || '').split(';').map((c) => c.split('=')[0].trim());
+  for (const name of ['cm_token', 'cm_refresh', 'cm_csrf', ...cookies]) {
+    if (!name) continue;
+    document.cookie = `${name}=; Max-Age=0; path=/`;
+    document.cookie = `${name}=; Max-Age=0; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+  }
+}
+
+/**
+ * Repairs the classic "stuck" state: the browser still sends a `cm_token` cookie
+ * (so the server applies CSRF protection) but the matching `cm_csrf` cookie is
+ * gone or does not match, and the stored access token cannot be refreshed.
+ *
+ * Manual recovery is not acceptable UX — especially on the login page, where a
+ * stale cookie used to make even signing in answer 403. This clears the local
+ * session material so the next request is a clean, cookie-free one.
+ */
+export async function recoverSession() {
+  clearSessionTokens();
+  clearAuthCookies();
+  await ensureCsrfToken({ force: true }).catch(() => null);
+  return true;
+}
+
+/** Persian, actionable message for CSRF rejections that could not self-heal. */
+export const CSRF_HELP_TEXT =
+  'نشست مرورگر شما با سرور هم‌خوان نیست. صفحه یک‌بار تازه شد؛ اگر باز هم تکرار شد، '
+  + 'خروج و ورود دوباره یا بارگذاری سخت (Ctrl+Shift+R) را انجام دهید.';

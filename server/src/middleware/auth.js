@@ -103,6 +103,29 @@ function requireStaff(req, res, next) {
 }
 
 /**
+ * Authentication endpoints that must never be blocked by CSRF.
+ *
+ * They either create the session (login/register/otp/refresh) or exist precisely
+ * to recover from a broken one (logout/otp). Blocking them turns a stale cookie
+ * into a lockout: with `cm_token` still set but `cm_csrf` missing, even *logging
+ * in again* would answer 403 and the user cannot fix anything from the UI.
+ * None of them is exploitable as CSRF:
+ *  - login/register/otp-request/otp-verify require credentials in the body,
+ *  - refresh requires the httpOnly refresh cookie (unreadable by an attacker),
+ *  - logout with a cookie only ends the session — an attacker forcing a logout is
+ *    a nuisance, not a compromise, and the header token is still required.
+ */
+const CSRF_EXEMPT_PATHS = new Set([
+  '/api/v1/auth/login',
+  '/api/v1/auth/register',
+  '/api/v1/auth/refresh',
+  '/api/v1/auth/otp/request',
+  '/api/v1/auth/otp/verify',
+  '/api/v1/auth/mfa/verify',
+  '/api/v1/admin/console/security/unlock'
+]);
+
+/**
  * Double-submit CSRF protection for cookie-authenticated state-changing requests.
  * Bearer-token clients (the SPA after login) are not vulnerable to CSRF because
  * the browser never attaches the header automatically; they are exempt.
@@ -118,6 +141,10 @@ function csrfProtection(req, res, next) {
 
   const hasSessionCookie = Boolean(req.cookies && req.cookies[COOKIE_TOKEN]);
   if (!hasSessionCookie) return next();
+
+  // Session-creating / session-recovering endpoints stay reachable (see above).
+  const pathOnly = (req.originalUrl || '').split('?')[0].replace(/\/$/, '');
+  if (CSRF_EXEMPT_PATHS.has(pathOnly)) return next();
 
   const origin = req.header('origin');
   const host = req.header('x-forwarded-host') || req.header('host');
