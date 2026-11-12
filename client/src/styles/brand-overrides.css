@@ -197,3 +197,81 @@
     transition: none;
   }
 }
+
+/* ---------- Brand logo on storefront product cards (migration 011) ---------- */
+.product-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-inline-start: 6px;
+  padding: 1px 8px 1px 2px;
+  border: 1px solid #fbcfe8;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #be185d;
+  font-weight: 800;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.product-brand img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  border-radius: 50%;
+  background: #fce7f3;
+  padding: 2px;
+}
+.product-brand-lg {
+  font-size: 0.84rem;
+  padding: 3px 12px 3px 4px;
+}
+.product-brand-lg img { width: 26px; height: 26px; }
+.product-brand-lg a { color: inherit; text-decoration: none; }
+.product-brand-lg a:hover { text-decoration: underline; }
+
+/* ---------- Brand strip on the shop page (migration 011) ---------- */
+.shop-brand-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid #fbcfe8;
+  border-radius: 16px;
+  background: #ffffff;
+}
+.shop-brand-strip-label {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #9d174d;
+}
+.shop-brand-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px 4px 4px;
+  border: 1px solid #fbcfe8;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #6b7280;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.shop-brand-pill img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  border-radius: 50%;
+  background: #fce7f3;
+  padding: 2px;
+}
+.shop-brand-pill:hover { background: #fce7f3; color: #be185d; border-color: #f9a8d4; }
+.shop-brand-pill.is-active { background: #ec1e79; border-color: #ec1e79; color: #ffffff; }
+.shop-brand-pill.is-active img { background: rgba(255, 255, 255, 0.9); }
+@media (prefers-reduced-motion: reduce) {
+  .shop-brand-pill { transition: none; }
+}

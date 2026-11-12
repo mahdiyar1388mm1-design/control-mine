@@ -154,6 +154,24 @@ export function ShopPage() {
         />
       )}
 
+      {brands.length > 0 && (
+        <div className="shop-brand-strip" aria-label="برندها">
+          <span className="shop-brand-strip-label">برندها:</span>
+          {brands.map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              className={`shop-brand-pill ${brand === b.slug ? 'is-active' : ''}`}
+              onClick={() => updateFilter({ brand: brand === b.slug ? '' : b.slug, page: 1 })}
+              title={b.name}
+            >
+              {b.logo_path ? <img src={b.logo_path} alt="" loading="lazy" /> : null}
+              <span>{b.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {!loading && !error && data.items.length > 0 && (
         <>
           <div className="muted" style={{ marginBottom: 10, fontSize: '0.86rem' }}>
@@ -166,7 +184,17 @@ export function ShopPage() {
                   <ProductImage src={p.image_path} alt={p.name} />
                 </Link>
                 <div className="product-body">
-                  <div className="product-meta">{p.category || 'عمومی'} {p.brand ? `• ${p.brand}` : ''}</div>
+                  <div className="product-meta">
+                    {p.category || 'عمومی'}
+                    {p.brand && (
+                      <span className="product-brand">
+                        {p.brand_logo_path
+                          ? <img src={p.brand_logo_path} alt={p.brand} loading="lazy" />
+                          : null}
+                        {p.brand}
+                      </span>
+                    )}
+                  </div>
                   <Link to={`/products/${p.slug}`} className="product-title">{p.name}</Link>
                   <p className="muted" style={{ fontSize: '0.84rem', margin: '0 0 10px' }}>
                     {(p.description || '').slice(0, 95)}{p.description && p.description.length > 95 ? '…' : ''}
@@ -293,7 +321,17 @@ export function ProductDetailPage() {
           <ProductImage src={product.image_path} alt={product.name} />
           <div style={{ marginTop: 16 }}>
             <div className="product-meta">
-              {product.category?.name || 'عمومی'} {product.brand ? `• برند: ${product.brand.name}` : ''}
+              {product.category?.name || 'عمومی'}
+              {product.brand && (
+                <span className="product-brand product-brand-lg">
+                  {product.brand.logo_path
+                    ? <img src={product.brand.logo_path} alt={product.brand.name} />
+                    : null}
+                  <Link to={`/shop?brand=${encodeURIComponent(product.brand.slug)}`}>
+                    {product.brand.name}
+                  </Link>
+                </span>
+              )}
             </div>
             <h1 style={{ margin: '6px 0 12px', fontSize: '1.35rem' }}>{product.name}</h1>
             <p style={{ margin: 0, whiteSpace: 'pre-line' }}>{product.description || 'توضیحی ثبت نشده است.'}</p>

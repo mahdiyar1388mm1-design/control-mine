@@ -27,7 +27,8 @@
 | POST | /auth/change-password | ورود | old_password, new_password |
 
 ## catalog (عمومی خواندنی)
-| GET | /categories, /brands | عمومی | |
+| GET | /categories, /brands | عمومی | برندها فقط فعال‌ها را برمی‌گردانند و شامل `logo_path` هر برند هستند |
+| GET | /brands/:slug | عمومی | جزئیات یک برند فعال (شامل `logo_path`, `description`, `website_url`، `product_count`) |
 | GET | /products?q&category&brand&min_price&max_price&page | عمومی | جست‌وجو/فیلتر سمت سرور |
 | GET | /products/:slug | عمومی | + SKUها (بدون قیمت خرید) |
 | POST/PATCH/DELETE | /admin/products, /admin/products/:id | admin | ثبت ممیزی؛ حذف فیزیکی دارای سفارش → 409 |
@@ -102,3 +103,43 @@
 
 ## health
 `GET /health` → { status:"ok", version } — برای health check استقرار.
+
+---
+
+## برندها و لوگو (مهاجرت `011_brand_logos`)
+
+برندها فراتر از یک نام هستند: لوگو، توضیح، وب‌سایت، ترتیب نمایش و وضعیت فعال/غیرفعال.
+
+| متد | مسیر | نقش | توضیح |
+|---|---|---|---|
+| GET | `/api/v1/admin/brands` | `admin`، `warehouse` | فهرست کامل (شامل غیرفعال‌ها) با `product_count` |
+| POST | `/api/v1/admin/brands` | `admin` | `{ name, description?, website_url?, sort_order?, is_active?, logo_path? }` |
+| PATCH | `/api/v1/admin/brands/:id` | `admin` | همان فیلدها، همه اختیاری؛ `logo_path: null` لوگو را پاک می‌کند |
+| POST | `/api/v1/admin/brands/:id/logo` | `admin` | `multipart/form-data` با فیلد `logo` |
+| DELETE | `/api/v1/admin/brands/:id/logo` | `admin` | حذف لوگو + پاک‌سازی فایل |
+| DELETE | `/api/v1/admin/brands/:id` | `admin` | حذف برند بی‌کالا؛ برند دارای کالا `is_active=0` می‌شود |
+| PATCH | `/api/v1/admin/brands-order` | `admin` | `{ items: [{ id, sort_order }] }` |
+
+**قالب پاسخ برند**
+
+```json
+{
+  "id": "uuid",
+  "name": "کاوش‌سنج",
+  "slug": "kavosh-sanj",
+  "logo_path": "/uploads/brand-logo-<uuid>.png",
+  "description": "سازندهٔ تجهیزات اندازه‌گیری دقیق",
+  "website_url": "https://example.com",
+  "is_active": true,
+  "sort_order": 0,
+  "product_count": 3,
+  "created_at": "2026-01-01T00:00:00.000Z",
+  "updated_at": "2026-01-01T00:00:00.000Z"
+}
+```
+
+**خطاها:** نام تکراری → `409 CONFLICT`؛ فایل نامعتبر یا جعلی → `400 VALIDATION_ERROR`؛
+مسیر لوگوی غیرمجاز → `400 VALIDATION_ERROR`؛ برند ناموجود → `404 NOT_FOUND`؛ نقش ناکافی → `403 FORBIDDEN`.
+
+**در پاسخ‌های کاتالوگ:** هر محصول در `GET /products` فیلد `brand_logo_path` دارد و در
+`GET /products/:slug` شیء `brand` شامل `id`, `name`, `slug`, `logo_path`, `website_url` است.

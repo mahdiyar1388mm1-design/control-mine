@@ -652,7 +652,7 @@ router.get('/products', (req, res, next) => {
     const items = all(
       `SELECT p.id, p.name, p.slug, p.description, p.status, p.image_path, p.created_at, p.updated_at,
               c.id AS category_id, c.name AS category_name,
-              b.id AS brand_id, b.name AS brand_name,
+              b.id AS brand_id, b.name AS brand_name, b.logo_path AS brand_logo_path,
               (SELECT COUNT(*) FROM skus s2 WHERE s2.product_id = p.id) AS sku_count,
               (SELECT COALESCE(SUM(s2.stock), 0) FROM skus s2 WHERE s2.product_id = p.id) AS total_stock,
               (SELECT MIN(s2.price_toman) FROM skus s2 WHERE s2.product_id = p.id AND s2.is_active = 1) AS min_price_toman,
@@ -686,7 +686,9 @@ router.get('/products', (req, res, next) => {
       })),
       page, limit, total,
       categories: catalog.listCategories(),
-      brands: catalog.listBrands()
+      // The console must see deactivated brands too, otherwise editing a product
+      // that belongs to a hidden brand silently clears its brand.
+      brands: catalog.listBrands({ includeInactive: true })
     });
   } catch (err) { next(err); }
 });
@@ -759,6 +761,38 @@ router.post('/products', (req, res, next) => {
     }
     return next(err);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Brands (logo, ordering, activation)
+// ---------------------------------------------------------------------------
+
+router.get('/brands', (req, res) => {
+  res.json({ items: require('../catalog/brands').listAdminBrands() });
+});
+
+router.post('/brands', (req, res, next) => {
+  try {
+    res.status(201).json({ brand: require('../catalog/brands').createBrand(req.user, req.body) });
+  } catch (err) { next(err); }
+});
+
+router.patch('/brands/:id', (req, res, next) => {
+  try {
+    res.json({ brand: require('../catalog/brands').updateBrand(req.user, req.params.id, req.body) });
+  } catch (err) { next(err); }
+});
+
+router.delete('/brands/:id', (req, res, next) => {
+  try {
+    res.json(require('../catalog/brands').deleteBrand(req.user, req.params.id));
+  } catch (err) { next(err); }
+});
+
+router.delete('/brands/:id/logo', (req, res, next) => {
+  try {
+    res.json({ brand: require('../catalog/brands').removeLogo(req.user, req.params.id) });
+  } catch (err) { next(err); }
 });
 
 router.post('/products/:id/archive', (req, res, next) => {

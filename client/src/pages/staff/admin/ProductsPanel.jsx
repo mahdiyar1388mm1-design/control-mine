@@ -45,6 +45,34 @@ function ProductThumb({ product, size = 56 }) {
   );
 }
 
+/** Creates a brand with a logo in one go (used by the product form's “برند جدید”). */
+async function createBrandWithLogo(name, file) {
+  const created = await apiFetch('/admin/brands', {
+    method: 'POST',
+    body: { name: name.trim() }
+  });
+  if (!file) return created.brand;
+  const fd = new FormData();
+  fd.append('logo', file);
+  const res = await authFetch(`/api/v1/admin/brands/${created.brand.id}/logo`, { method: 'POST', body: fd });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error?.message || 'آپلود لوگوی برند ناموفق بود.');
+  return data.brand;
+}
+
+/** Brand logo chip shown next to the brand name in the product editor. */
+function BrandChip({ brand, size = 30 }) {
+  if (!brand) return null;
+  return (
+    <span className="ac-brand-chip" title={brand.name}>
+      {brand.logo_path
+        ? <img src={brand.logo_path} alt={brand.name} />
+        : <Icon name="folder" size={size * 0.5} />}
+      <span>{brand.name}</span>
+    </span>
+  );
+}
+
 async function uploadImages(productId, files, altText) {
   if (!files.length) return null;
   const fd = new FormData();
@@ -74,11 +102,12 @@ function Field({ label, hint, required, children, span }) {
   );
 }
 
-function CreateProductModal({ open, onClose, categories, brands, onCreated }) {
+function CreateProductModal({ open, onClose, categories, brands, onCreated, onBrandCreated }) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [files, setFiles] = useState([]);
   const [newCategory, setNewCategory] = useState(false);
   const [newBrand, setNewBrand] = useState(false);
+  const [newBrandLogo, setNewBrandLogo] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
 
@@ -88,6 +117,7 @@ function CreateProductModal({ open, onClose, categories, brands, onCreated }) {
       setFiles([]);
       setNewCategory(false);
       setNewBrand(false);
+      setNewBrandLogo(null);
       setErr(null);
       setBusy(false);
     }
@@ -100,14 +130,22 @@ function CreateProductModal({ open, onClose, categories, brands, onCreated }) {
     setBusy(true);
     setErr(null);
     try {
+      // A brand created here carries its logo immediately; the product is then
+      // linked by id so nothing depends on a name match.
+      let brandId = newBrand ? null : (form.brand_id || null);
+      if (newBrand && form.brand_name.trim()) {
+        const brand = await createBrandWithLogo(form.brand_name, newBrandLogo);
+        brandId = brand.id;
+        onBrandCreated?.(brand);
+      }
       const payload = {
         name: form.name.trim(),
         description: form.description.trim(),
         status: form.status,
         category_id: newCategory ? null : (form.category_id || null),
         category_name: newCategory ? form.category_name.trim() : null,
-        brand_id: newBrand ? null : (form.brand_id || null),
-        brand_name: newBrand ? form.brand_name.trim() : null,
+        brand_id: brandId,
+        brand_name: null,
         sku: form.price_toman !== '' ? {
           code: form.sku_code.trim() || undefined,
           price_toman: Number(form.price_toman),
@@ -180,9 +218,21 @@ function CreateProductModal({ open, onClose, categories, brands, onCreated }) {
                 <button type="button" className="ac-mini-btn" onClick={() => setNewBrand(true)}>برند جدید</button>
               </div>
             ) : (
-              <div className="ac-inline-field">
-                <input className="ac-input" value={form.brand_name} onChange={(e) => set('brand_name', e.target.value)} placeholder="نام برند جدید" />
-                <button type="button" className="ac-mini-btn" onClick={() => setNewBrand(false)}>انتخاب موجود</button>
+              <div className="ac-new-brand">
+                <div className="ac-inline-field">
+                  <input className="ac-input" value={form.brand_name} onChange={(e) => set('brand_name', e.target.value)} placeholder="نام برند جدید" />
+                  <button type="button" className="ac-mini-btn" onClick={() => setNewBrand(false)}>انتخاب موجود</button>
+                </div>
+                <label className="ac-logo-mini">
+                  <Icon name="image" size={14} />
+                  <span>{newBrandLogo ? newBrandLogo.name : 'لوگوی برند (اختیاری)'}</span>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="ac-file-hidden"
+                    onChange={(e) => setNewBrandLogo((e.target.files || [])[0] || null)}
+                  />
+                </label>
               </div>
             )}
           </Field>
@@ -383,6 +433,8 @@ function EditProductModal({ slug, onClose, onSaved, categories, brands }) {
     }
   };
 
+  const selectedBrand = form ? brands.find((b) => b.id === form.brand_id) : null;
+
   return (
     <Modal
       open
@@ -414,11 +466,19 @@ function EditProductModal({ slug, onClose, onSaved, categories, brands }) {
                 {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </Field>
-            <Field label="برند">
+            <Field
+              label="برند"
+              hint={selectedBrand ? 'لوگوی این برند روی کارت کالا و صفحهٔ محصول نمایش داده می‌شود.' : 'برند را از بخش «برندها» بسازید یا انتخاب کنید.'}
+            >
               <select className="ac-select" value={form.brand_id} onChange={(e) => setForm({ ...form, brand_id: e.target.value })}>
                 <option value="">بدون برند</option>
-                {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                {brands.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}{b.is_active === false ? ' (غیرفعال)' : ''}{b.logo_path ? ' • لوگو دارد' : ''}
+                  </option>
+                ))}
               </select>
+              {selectedBrand && <BrandChip brand={selectedBrand} />}
             </Field>
             <Field label="توضیحات" span={3}>
               <textarea className="ac-textarea" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
@@ -586,6 +646,14 @@ export function ProductsPanel({ autoCreate = 0 }) {
                 <h4 title={product.name}>{product.name}</h4>
                 <div className="ac-product-meta">
                   <span><Icon name="folder" size={12} /> {product.category_name || 'بدون دسته'}</span>
+                  {product.brand_name && (
+                    <span className="ac-meta-brand">
+                      {product.brand_logo_path
+                        ? <img src={product.brand_logo_path} alt={product.brand_name} />
+                        : <Icon name="folder" size={12} />}
+                      {product.brand_name}
+                    </span>
+                  )}
                   <span><Icon name="hash" size={12} /> {formatNumber(product.sku_count)} تنوع</span>
                 </div>
                 <div className="ac-product-foot">
@@ -618,6 +686,7 @@ export function ProductsPanel({ autoCreate = 0 }) {
           setToast(`محصول «${product.name}» با موفقیت اضافه شد.`);
           reload();
         }}
+        onBrandCreated={(brand) => setToast(`برند «${brand.name}» ثبت شد.`)}
       />
 
       {editSlug && (

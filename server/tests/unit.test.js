@@ -86,9 +86,10 @@ test('unit: scenario #20 — versioned migration, rollback, and AES-256-GCM encr
   assert.equal(bkp.encrypted, true);
   assert.ok(bkp.path.endsWith('.enc'));
 
-  // Rollback all migrations (010..001) and re-apply cleanly
-  const rolled = rollback(10);
+  // Rollback all migrations (011..001) and re-apply cleanly
+  const rolled = rollback(11);
   assert.deepEqual(rolled, [
+    '011_brand_logos',
     '010_two_factor_authentication',
     '009_query_performance', '008_security_and_integrity',
     '007_admin_console', '006_shipping_profile', '005_db_integrity',

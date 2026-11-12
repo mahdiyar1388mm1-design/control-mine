@@ -1517,3 +1517,188 @@
 .ac-chip.ok { background: var(--ac-ok-soft); color: var(--ac-ok); border-color: #bbf7d0; }
 .ac-chip.warn { background: #fef3c7; color: #92400e; border-color: #fde68a; }
 .ac-table td small { display: block; font-size: 11.5px; color: var(--ac-ink-3); margin-top: 2px; }
+
+/* ---------- Brands & logos (migration 011) ---------- */
+
+.ac-file-hidden { display: none; }
+
+.brand-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+  gap: 12px;
+}
+
+.ac-brand-card {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 14px;
+  border: 1px solid var(--ac-line);
+  border-radius: 18px;
+  background: #fff;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+.ac-brand-card:hover { transform: translateY(-2px); border-color: #f6c9dd; box-shadow: 0 14px 30px rgba(190, 24, 93, 0.1); }
+.ac-brand-card.is-inactive { background: #fbfafb; border-style: dashed; }
+.ac-brand-card.is-inactive .ac-brand-titles strong { color: var(--ac-muted); }
+
+.ac-brand-head { display: flex; align-items: center; gap: 10px; }
+.ac-brand-titles { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.ac-brand-titles strong {
+  font-size: 0.9rem;
+  font-weight: 900;
+  color: var(--ac-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ac-brand-titles small {
+  font-size: 0.66rem;
+  color: var(--ac-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ac-brand-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 1px solid var(--ac-line);
+  border-radius: 14px;
+  background:
+    linear-gradient(45deg, #f7f4f6 25%, transparent 25%, transparent 75%, #f7f4f6 75%) 0 0 / 12px 12px,
+    linear-gradient(45deg, #f7f4f6 25%, transparent 25%, transparent 75%, #f7f4f6 75%) 6px 6px / 12px 12px,
+    #fff;
+}
+.ac-brand-logo img { width: 100%; height: 100%; object-fit: contain; padding: 4px; }
+.ac-brand-logo-empty { color: var(--ac-pink); background: var(--ac-pink-soft); }
+
+.ac-brand-desc {
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.7;
+  color: var(--ac-ink-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 2.5em;
+}
+.ac-brand-desc.muted { color: var(--ac-muted); }
+
+.ac-brand-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.68rem;
+  color: var(--ac-muted);
+}
+.ac-brand-meta span,
+.ac-brand-meta a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: inherit;
+  text-decoration: none;
+}
+.ac-brand-meta a { color: var(--ac-pink-dark); }
+.ac-brand-meta a:hover { text-decoration: underline; }
+
+.ac-brand-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px solid var(--ac-line-soft);
+}
+
+/* logo picker inside the brand modal */
+.ac-brand-logo-picker { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ac-brand-logo-preview {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 74px;
+  height: 74px;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 1px dashed #e6bcd4;
+  border-radius: 16px;
+  background: var(--ac-pink-soft);
+  color: var(--ac-pink);
+}
+.ac-brand-logo-preview img { width: 100%; height: 100%; object-fit: contain; padding: 6px; background: #fff; }
+.ac-brand-logo-actions { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ac-brand-logo-actions .ac-btn { width: fit-content; cursor: pointer; }
+.ac-brand-logo-actions .ac-file-name {
+  font-size: 0.68rem;
+  color: var(--ac-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+  white-space: nowrap;
+}
+
+/* brand chip shown in the product editor */
+.ac-brand-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 6px;
+  padding: 4px 10px 4px 4px;
+  border: 1px solid var(--ac-line);
+  border-radius: 999px;
+  background: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--ac-ink-2);
+  width: fit-content;
+}
+.ac-brand-chip img {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  border-radius: 50%;
+  background: var(--ac-pink-soft);
+  padding: 2px;
+}
+
+/* brand logo next to the name on product cards */
+.ac-meta-brand img {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  border-radius: 5px;
+  background: var(--ac-pink-soft);
+  padding: 1px;
+}
+
+/* “new brand” block inside the create-product form */
+.ac-new-brand { display: flex; flex-direction: column; gap: 6px; }
+.ac-logo-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 6px 10px;
+  border: 1px dashed #e6bcd4;
+  border-radius: 10px;
+  background: var(--ac-pink-soft);
+  color: var(--ac-pink-dark);
+  font-size: 0.7rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.ac-logo-mini:hover { background: var(--ac-pink-soft-2); }
+.ac-logo-mini span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.ac-confirm-text { margin: 0; font-size: 0.84rem; line-height: 1.9; color: var(--ac-ink-2); }
+
+@media (max-width: 520px) {
+  .brand-grid { grid-template-columns: 1fr; }
+}

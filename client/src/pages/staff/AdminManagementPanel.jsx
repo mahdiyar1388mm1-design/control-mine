@@ -4,9 +4,10 @@ import { formatDateTime, ROLE_LABELS } from '../../lib/format';
 import { ConfirmDialog, ErrorState, FieldErrorsList, LoadingState, StatusBadge } from '../../components/StateViews';
 import { AdminLthPanel } from './AdminLthPanel';
 import { AdminCatalogPanel } from './AdminCatalogPanel';
+import { BrandsPanel } from './admin/BrandsPanel';
 
 export function AdminManagementPanel() {
-  const [tab, setTab] = useState('lth'); // lth | catalog | users | settings | audit
+  const [tab, setTab] = useState('lth'); // lth | catalog | brands | users | settings | audit
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [msg, setMsg] = useState('');
@@ -26,7 +27,7 @@ export function AdminManagementPanel() {
   const [audits, setAudits] = useState([]);
 
   const loadTab = useCallback(async () => {
-    if (tab === 'lth' || tab === 'catalog') {
+    if (tab === 'lth' || tab === 'catalog' || tab === 'brands') {
       setLoading(false);
       setError(null);
       return;
@@ -118,6 +119,7 @@ export function AdminManagementPanel() {
       <div className="tabs">
         <button type="button" className={`tab-btn ${tab === 'lth' ? 'active' : ''}`} onClick={() => setTab('lth')}>🪙 موتور LTH، ریگلاژ استیک و لوگو</button>
         <button type="button" className={`tab-btn ${tab === 'catalog' ? 'active' : ''}`} onClick={() => setTab('catalog')}>🛍️ مدیریت کالاها و SKU</button>
+        <button type="button" className={`tab-btn ${tab === 'brands' ? 'active' : ''}`} onClick={() => setTab('brands')}>🏷️ برندها و لوگو</button>
         <button type="button" className={`tab-btn ${tab === 'users' ? 'active' : ''}`} onClick={() => setTab('users')}>👥 کاربران و نقش‌ها</button>
         <button type="button" className={`tab-btn ${tab === 'settings' ? 'active' : ''}`} onClick={() => setTab('settings')}>⚙️ تنظیمات ارسال</button>
         <button type="button" className={`tab-btn ${tab === 'audit' ? 'active' : ''}`} onClick={() => setTab('audit')}>🛡️ سابقهٔ ممیزی (Audit Log)</button>
@@ -125,8 +127,9 @@ export function AdminManagementPanel() {
 
       {tab === 'lth' && <AdminLthPanel />}
       {tab === 'catalog' && <AdminCatalogPanel />}
+      {tab === 'brands' && <BrandsPanel />}
 
-      {tab !== 'lth' && tab !== 'catalog' && (
+      {tab !== 'lth' && tab !== 'catalog' && tab !== 'brands' && (
         <>
           {msg && <div className="alert-inline ok">✓ {msg}</div>}
           {opErr && (

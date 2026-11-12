@@ -4,6 +4,7 @@ import { Icon } from '../../../components/Icon';
 import { useAuth } from '../../../context/AuthContext';
 import { AdminError, AdminLoading, Bars, EmptyHint, SectionCard, StatCard, StatusPill, useAdminData } from './AdminUi';
 import { ProductsPanel } from './ProductsPanel';
+import { BrandsPanel } from './BrandsPanel';
 import { PeoplePanel } from './PeoplePanel';
 import { OrdersPanel } from './OrdersPanel';
 import { TreasuryPanel } from './TreasuryPanel';
@@ -14,6 +15,7 @@ import { AdminLthPanel } from '../AdminLthPanel';
 const TABS = [
   { id: 'dashboard', label: 'داشبورد', icon: 'landmark', hint: 'نمای کلی سامانه' },
   { id: 'products', label: 'محصولات', icon: 'package', hint: 'کالا، قیمت و موجودی' },
+  { id: 'brands', label: 'برندها', icon: 'folder', hint: 'لوگو، توضیح و ترتیب' },
   { id: 'people', label: 'کاربران', icon: 'users', hint: 'شماره و نام کاربری' },
   { id: 'orders', label: 'سفارش‌ها', icon: 'bag', hint: 'پیگیری فروش' },
   { id: 'treasury', label: 'خزانه', icon: 'coin', hint: 'جریان نقدی خودکار' },
@@ -355,6 +357,7 @@ export function AdminConsolePanel() {
 
         {tab === 'dashboard' && <Dashboard onNavigate={go} onCreateProduct={createProduct} />}
         {tab === 'products' && <ProductsPanel autoCreate={createSignal} />}
+        {tab === 'brands' && <BrandsPanel />}
         {tab === 'people' && <PeoplePanel />}
         {tab === 'orders' && <OrdersPanel />}
         {tab === 'treasury' && <TreasuryPanel onOpenLth={() => go('lth')} />}

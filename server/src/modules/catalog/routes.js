@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const catalog = require('./service');
+const brands = require('./brands');
 const { requireAuth, requireRole } = require('../../middleware/auth');
 const { rateLimit } = require('../../middleware/rateLimit');
 const { uuid } = require('../../utils/validate');
@@ -29,13 +30,29 @@ const upload = multer({
   fileFilter: imageFileFilter
 });
 
+const logoUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, publicUploadsDir),
+    // A brand logo always lands under a UUID name, never the client's filename.
+    filename: (req, file, cb) => cb(null, `brand-logo-${randomFileName(file.originalname, '.png')}`)
+  }),
+  limits: { fileSize: config.maxUploadBytes, files: 1, fields: 10 },
+  fileFilter: imageFileFilter
+});
+
+/** multer.array() fills req.files, multer.single() fills req.file. Accept both. */
+function uploadedFiles(req) {
+  if (Array.isArray(req.files)) return req.files;
+  return req.file ? [req.file] : [];
+}
+
 /** Rejects payloads whose bytes do not match the declared image type. */
 function verifyUploadedImages(req, res, next) {
   try {
-    for (const file of req.files || []) assertFileSignature(file);
+    for (const file of uploadedFiles(req)) assertFileSignature(file);
     next();
   } catch (err) {
-    for (const file of req.files || []) {
+    for (const file of uploadedFiles(req)) {
       try { require('fs').unlinkSync(file.path); } catch { /* ignore */ }
     }
     next(err);
@@ -50,6 +67,16 @@ router.get('/categories', (req, res) => {
 
 router.get('/brands', (req, res) => {
   res.json({ items: catalog.listBrands() });
+});
+
+router.get('/brands/:slug', (req, res, next) => {
+  try {
+    const item = catalog
+      .listBrands()
+      .find((b) => b.slug === req.params.slug);
+    if (!item) throw ApiError.notFound('برند یافت نشد.');
+    res.json({ brand: item });
+  } catch (err) { next(err); }
 });
 
 router.get('/products', rateLimit({ name: 'search', windowSec: 60, max: 60 }), (req, res) => {
@@ -82,9 +109,49 @@ router.post('/admin/categories', requireRole('admin'), (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ---------- brands (admin console) ----------
+
+router.get('/admin/brands', requireRole('admin', 'warehouse'), (req, res) => {
+  res.json({ items: brands.listAdminBrands() });
+});
+
 router.post('/admin/brands', requireRole('admin'), (req, res, next) => {
   try {
-    res.status(201).json({ brand: catalog.createBrand(req.user, req.body) });
+    res.status(201).json({ brand: brands.createBrand(req.user, req.body) });
+  } catch (err) { next(err); }
+});
+
+router.patch('/admin/brands/:id', requireRole('admin'), (req, res, next) => {
+  try {
+    res.json({ brand: brands.updateBrand(req.user, req.params.id, req.body) });
+  } catch (err) { next(err); }
+});
+
+router.delete('/admin/brands/:id', requireRole('admin'), (req, res, next) => {
+  try {
+    res.json(brands.deleteBrand(req.user, req.params.id));
+  } catch (err) { next(err); }
+});
+
+/**
+ * Logo upload. The file is validated by extension, declared MIME and real magic
+ * bytes before anything is written to the brands table.
+ */
+router.post('/admin/brands/:id/logo', requireRole('admin'), logoUpload.single('logo'), verifyUploadedImages, (req, res, next) => {
+  try {
+    res.status(201).json({ brand: brands.saveLogo(req.user, req.params.id, req.file) });
+  } catch (err) { next(err); }
+});
+
+router.delete('/admin/brands/:id/logo', requireRole('admin'), (req, res, next) => {
+  try {
+    res.json({ brand: brands.removeLogo(req.user, req.params.id) });
+  } catch (err) { next(err); }
+});
+
+router.patch('/admin/brands-order', requireRole('admin'), (req, res, next) => {
+  try {
+    res.json({ items: brands.reorderBrands(req.user, (req.body || {}).items) });
   } catch (err) { next(err); }
 });
 

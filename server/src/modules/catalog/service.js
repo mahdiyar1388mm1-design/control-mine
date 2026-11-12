@@ -6,6 +6,7 @@ const { all, get, run, tx } = require('../../db');
 const { ApiError } = require('../../utils/errors');
 const { uuid, nowIso, validate, parsePagination, parseJsonObject, humanCode } = require('../../utils/validate');
 const { audit } = require('../platform/service');
+const brands = require('./brands');
 
 const PRODUCT_STATUS = ['active', 'draft', 'archived'];
 
@@ -30,8 +31,12 @@ function listCategories() {
   return all('SELECT * FROM categories ORDER BY sort_order, name');
 }
 
-function listBrands() {
-  return all('SELECT * FROM brands ORDER BY name');
+/**
+ * Brand list for the storefront filter. `includeInactive` is what the admin
+ * console needs: a brand hidden from the shop must still be selectable there.
+ */
+function listBrands({ includeInactive = false } = {}) {
+  return includeInactive ? brands.listAdminBrands() : brands.listPublicBrands();
 }
 
 function listProducts(query) {
@@ -68,7 +73,7 @@ function listProducts(query) {
   };
   const sortSql = sortMap[query.sort] || sortMap.newest;
   const items = all(
-    `SELECT p.*, c.name AS category_name, b.name AS brand_name,
+    `SELECT p.*, c.name AS category_name, b.name AS brand_name, b.logo_path AS brand_logo_path,
             (SELECT MIN(s.price_toman) FROM skus s WHERE s.product_id = p.id AND s.is_active = 1) AS min_price,
             (SELECT MAX(s.price_toman) FROM skus s WHERE s.product_id = p.id AND s.is_active = 1) AS max_price,
             (SELECT SUM(s.stock) FROM skus s WHERE s.product_id = p.id AND s.is_active = 1) AS total_stock
@@ -96,6 +101,7 @@ function listProducts(query) {
       image_path: p.image_path,
       category: p.category_name,
       brand: p.brand_name,
+      brand_logo_path: p.brand_logo_path || null,
       min_price_toman: p.min_price,
       max_price_toman: p.max_price,
       total_stock: p.total_stock,
@@ -108,7 +114,8 @@ function listProducts(query) {
 function productBySlug(slug, { includeCost = false, includeInactive = false } = {}) {
   const statusFilter = includeInactive ? '' : " AND p.status = 'active'";
   const p = get(
-    `SELECT p.*, c.name AS category_name, c.slug AS category_slug, b.name AS brand_name, b.slug AS brand_slug
+    `SELECT p.*, c.name AS category_name, c.slug AS category_slug, b.name AS brand_name, b.slug AS brand_slug,
+            b.logo_path AS brand_logo_path, b.website_url AS brand_website
        FROM products p
        LEFT JOIN categories c ON c.id = p.category_id
        LEFT JOIN brands b ON b.id = p.brand_id
@@ -126,7 +133,15 @@ function productBySlug(slug, { includeCost = false, includeInactive = false } = 
     status: p.status,
     image_path: p.image_path,
     category: p.category_name ? { name: p.category_name, slug: p.category_slug } : null,
-    brand: p.brand_name ? { name: p.brand_name, slug: p.brand_slug } : null,
+    brand: p.brand_name
+      ? {
+        id: p.brand_id || null,
+        name: p.brand_name,
+        slug: p.brand_slug,
+        logo_path: p.brand_logo_path || null,
+        website_url: p.brand_website || null
+      }
+      : null,
     images,
     skus: skus.map((s) => skuToJson(s, { includeCost })),
     created_at: p.created_at,
@@ -243,13 +258,12 @@ function createCategory(actor, input) {
   return get('SELECT * FROM categories WHERE id = ?', [id]);
 }
 
+/**
+ * Kept for the product-creation flow that may create a brand on the fly.
+ * Brand records (logo, description, ordering) live in ./brands.
+ */
 function createBrand(actor, input) {
-  const data = validate(input).string('name', { min: 2, max: 80 }).done();
-  const id = uuid();
-  const slug = slugify(data.name);
-  run('INSERT INTO brands (id, name, slug) VALUES (?, ?, ?)', [id, data.name, slug]);
-  audit(actor.id, actor.role, 'catalog.create_brand', 'brand', id, { name: data.name });
-  return get('SELECT * FROM brands WHERE id = ?', [id]);
+  return brands.createBrand(actor, input);
 }
 
 function createSku(actor, productId, input) {
