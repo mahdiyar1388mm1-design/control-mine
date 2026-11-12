@@ -150,8 +150,8 @@ function createOrder(user, input, idempotencyKey) {
     const now = nowIso();
     run(
       `INSERT INTO orders (id, code, user_id, status, subtotal_toman, shipping_toman, discount_toman, total_toman,
-         address_snapshot, shipping_method, tracking_code, idempotency_key, cancel_reason, created_at, updated_at)
-       VALUES (?, ?, ?, 'pending_payment', ?, ?, 0, ?, ?, ?, NULL, ?, NULL, ?, ?)`,
+         address_snapshot, address_id, shipping_method, tracking_code, idempotency_key, cancel_reason, created_at, updated_at)
+       VALUES (?, ?, ?, 'pending_payment', ?, ?, 0, ?, ?, ?, ?, NULL, ?, NULL, ?, ?)`,
       [orderId, code, user.id, subtotal, shipping, total,
         JSON.stringify({
           id: address.id, title: address.title, province: address.province, city: address.city,
@@ -159,6 +159,7 @@ function createOrder(user, input, idempotencyKey) {
           recipient_name: address.recipient_name, recipient_phone: address.recipient_phone,
           recipient_email: address.recipient_email || null
         }),
+        address.id,
         data.shipping_method, idempotencyKey || null, now, now]
     );
 

@@ -5,13 +5,16 @@ import { formatDateTime, ROLE_LABELS } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
 import { Icon } from '../components/Icon';
 import { EmptyState, ErrorState, FieldErrorsList, LoadingState } from '../components/StateViews';
+import { normalizePhone, isValidIranPhone, passwordProblems, passwordStrength, PASSWORD_MIN_LENGTH } from '../lib/security';
+import { SessionsCard } from './account/SessionsCard';
+import { TwoFactorCard } from './account/TwoFactorCard';
 import '../styles/shipping-profile.css';
 
 export function AuthPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const nextUrl = searchParams.get('next') || '/';
-  const { user, login, register, requestOtp, verifyOtp } = useAuth();
+  const { user, login, verifyMfa, register, requestOtp, verifyOtp } = useAuth();
 
   const [mode, setMode] = useState('login'); // login | otp | register
   const [phone, setPhone] = useState('');
@@ -20,6 +23,10 @@ export function AuthPage() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [otpSent, setOtpSent] = useState(false);
+  // second factor: { challengeToken, expiresAt } once the password step passes
+  const [mfa, setMfa] = useState(null);
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaRecovery, setMfaRecovery] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [sandboxHint, setSandboxHint] = useState('');
   const [busy, setBusy] = useState(false);
@@ -73,10 +80,52 @@ export function AuthPage() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setBusy(true);
     setError(null);
+    const normalized = normalizePhone(phone);
+    if (!isValidIranPhone(normalized)) {
+      setError({ message: 'شماره موبایل معتبر نیست؛ ۱۱ رقم و با ۰۹ شروع شود (ارقام فارسی هم پذیرفته می‌شود).', details: [] });
+      return;
+    }
+    setBusy(true);
     try {
-      await login(phone.trim(), password);
+      const res = await login(normalized, password);
+      if (res && res.mfa_required) {
+        setMfa({ challengeToken: res.challenge_token, expiresAt: res.expires_at });
+        setMfaCode('');
+        setMfaRecovery('');
+        setPassword('');
+        return;
+      }
+      navigate(nextUrl, { replace: true });
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleMfaVerify = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      await verifyMfa({ challengeToken: mfa.challengeToken, code: mfaCode });
+      setMfa(null);
+      navigate(nextUrl, { replace: true });
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleMfaRecovery = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      await verifyMfa({ challengeToken: mfa.challengeToken, recoveryCode: mfaRecovery });
+      setMfa(null);
       navigate(nextUrl, { replace: true });
     } catch (err) {
       setError(err);
@@ -87,10 +136,23 @@ export function AuthPage() {
 
   const handleRegister = async (e) => {
     e.preventDefault();
-    setBusy(true);
     setError(null);
+    const normalized = normalizePhone(phone);
+    if (!isValidIranPhone(normalized)) {
+      setError({ message: 'شماره موبایل معتبر نیست؛ ۱۱ رقم و با ۰۹ شروع شود.', details: [] });
+      return;
+    }
+    const policyProblems = passwordProblems(password, { personal: [normalized, fullName, email.split('@')[0]] });
+    if (policyProblems.length) {
+      setError({
+        message: 'رمز عبور به‌اندازهٔ کافی قوی نیست.',
+        details: policyProblems.map((message) => ({ field: 'password', message }))
+      });
+      return;
+    }
+    setBusy(true);
     try {
-      await register({ phone: phone.trim(), full_name: fullName.trim(), password, email: email.trim() });
+      await register({ phone: normalized, full_name: fullName.trim(), password, email: email.trim() });
       navigate(nextUrl, { replace: true });
     } catch (err) {
       setError(err);
@@ -105,7 +167,7 @@ export function AuthPage() {
     setError(null);
     setSandboxHint('');
     try {
-      const res = await requestOtp(phone.trim());
+      const res = await requestOtp(normalizePhone(phone));
       setOtpSent(true);
       if (res.dev_code) {
         setSandboxHint(`کانال پیامک واقعی متصل نیست؛ کد یک‌بارمصرف آزمایشی (Sandbox): ${res.dev_code}`);
@@ -122,7 +184,7 @@ export function AuthPage() {
     setBusy(true);
     setError(null);
     try {
-      await verifyOtp(phone.trim(), otpCode.trim());
+      await verifyOtp(normalizePhone(phone), otpCode.trim());
       navigate(nextUrl, { replace: true });
     } catch (err) {
       setError(err);
@@ -162,7 +224,51 @@ export function AuthPage() {
             </>
           )}
 
-          {mode === 'login' && (
+          {mode === 'login' && mfa && (
+            <div className="auth-form auth-mfa-step">
+              <p className="auth-form-intro">
+                حساب شما با <strong>ورود دومرحله‌ای</strong> محافظت می‌شود. کد ۶ رقمی برنامهٔ احراز هویت
+                (Google Authenticator، Authy یا مشابه) را وارد کنید.
+              </p>
+              <form onSubmit={handleMfaVerify}>
+                <div className="auth-field">
+                  <label htmlFor="mfa-code">کد تأیید دومرحله‌ای</label>
+                  <div className="auth-input-wrap">
+                    <input
+                      id="mfa-code" className="mono auth-otp-input" dir="ltr" inputMode="numeric"
+                      autoComplete="one-time-code" required maxLength={6} placeholder="— — — — — —"
+                      value={mfaCode} onChange={(e) => setMfaCode(e.target.value)}
+                    />
+                  </div>
+                  <span className="auth-field-help">اعتبار این مرحله تا چند دقیقهٔ کوتاه است.</span>
+                </div>
+                <button type="submit" className="auth-submit" disabled={busy || mfaCode.replace(/\D/g, '').length !== 6}>
+                  {busy ? 'در حال بررسی...' : 'تأیید و ورود'}
+                </button>
+              </form>
+              <form className="auth-form auth-mfa-recovery" onSubmit={handleMfaRecovery}>
+                <div className="auth-field">
+                  <label htmlFor="mfa-recovery">کد بازیابی</label>
+                  <div className="auth-input-wrap">
+                    <input
+                      id="mfa-recovery" className="mono" dir="ltr" autoComplete="off"
+                      placeholder="XXXXX-XXXXX" value={mfaRecovery}
+                      onChange={(e) => setMfaRecovery(e.target.value)}
+                    />
+                  </div>
+                  <span className="auth-field-help">اگر دسترسی به اپلیکیشن ندارید، یکی از کدهای بازیابی خود را وارد کنید.</span>
+                </div>
+                <button type="submit" className="auth-submit auth-submit-ghost" disabled={busy || mfaRecovery.trim().length < 6}>
+                  ورود با کد بازیابی
+                </button>
+              </form>
+              <button type="button" className="auth-text-link auth-back-to-login" onClick={() => { setMfa(null); setMfaCode(''); setMfaRecovery(''); }}>
+                بازگشت به مرحلهٔ رمز عبور
+              </button>
+            </div>
+          )}
+
+          {mode === 'login' && !mfa && (
             <form className="auth-form" onSubmit={handleLogin}>
               <div className="auth-field">
                 <label htmlFor="login-phone">شماره موبایل</label>
@@ -220,7 +326,14 @@ export function AuthPage() {
               <div className="auth-field"><label htmlFor="reg-name">نام و نام خانوادگی</label><div className="auth-input-wrap"><input id="reg-name" autoComplete="name" required minLength={3} value={fullName} onChange={(e) => setFullName(e.target.value)} /></div></div>
               <div className="auth-field"><label htmlFor="reg-phone">شماره موبایل</label><div className="auth-input-wrap"><input id="reg-phone" className="mono" type="tel" inputMode="numeric" dir="ltr" autoComplete="tel" aria-describedby="reg-phone-help" required placeholder="0912 345 6789" value={phone} onChange={(e) => setPhone(e.target.value)} /></div><span id="reg-phone-help" className="auth-field-help">از شمارهٔ همراه فعال خود استفاده کنید.</span></div>
               <div className="auth-field"><label htmlFor="reg-email">رایانامه (اختیاری)</label><div className="auth-input-wrap"><input id="reg-email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} /></div></div>
-              <div className="auth-field"><label htmlFor="reg-pass">رمز عبور</label><div className="auth-input-wrap"><input id="reg-pass" type={showPassword ? 'text' : 'password'} autoComplete="new-password" aria-describedby="reg-pass-help" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} /><button type="button" className="auth-reveal" onClick={() => setShowPassword((shown) => !shown)} aria-label={showPassword ? 'پنهان کردن رمز عبور' : 'نمایش رمز عبور'}>{showPassword ? 'پنهان' : 'نمایش'}</button></div><span id="reg-pass-help" className="auth-field-help">حداقل ۸ نویسه انتخاب کنید؛ رمز قوی‌تر امنیت حساب را بیشتر می‌کند.</span></div>
+              <div className="auth-field"><label htmlFor="reg-pass">رمز عبور</label><div className="auth-input-wrap"><input id="reg-pass" type={showPassword ? 'text' : 'password'} autoComplete="new-password" aria-describedby="reg-pass-help" required minLength={PASSWORD_MIN_LENGTH} value={password} onChange={(e) => setPassword(e.target.value)} /><button type="button" className="auth-reveal" onClick={() => setShowPassword((shown) => !shown)} aria-label={showPassword ? 'پنهان کردن رمز عبور' : 'نمایش رمز عبور'}>{showPassword ? 'پنهان' : 'نمایش'}</button></div>
+                {password && (
+                  <div className={`pw-meter pw-${passwordStrength(password).tone}`} role="status">
+                    <span className="pw-meter-bar" aria-hidden="true"><span style={{ width: `${(passwordStrength(password).score / 4) * 100}%` }} /></span>
+                    <span className="pw-meter-label">قدرت رمز: {passwordStrength(password).label}</span>
+                  </div>
+                )}
+                <span id="reg-pass-help" className="auth-field-help">حداقل {PASSWORD_MIN_LENGTH} نویسه، شامل حرف بزرگ و کوچک، رقم و نشانهٔ ویژه (مانند !@#$).</span></div>
               <button type="submit" className="auth-submit" disabled={busy}>{busy ? 'در حال ایجاد حساب...' : 'ایجاد حساب کاربری'}<span aria-hidden="true">←</span></button>
             </form>
           )}
@@ -369,9 +482,14 @@ export function AccountDashboardPage() {
 
   const handleChangePassword = async (e) => {
     e.preventDefault();
-    setBusy(true);
     setMsg('');
     setOpErr(null);
+    const problems = passwordProblems(pwdForm.new_password, { personal: [user?.phone, user?.full_name, user?.email] });
+    if (problems.length) {
+      setOpErr({ message: 'رمز عبور جدید به‌اندازهٔ کافی قوی نیست.', details: problems.map((message) => ({ field: 'new_password', message })) });
+      return;
+    }
+    setBusy(true);
     try {
       const res = await apiFetch('/auth/change-password', { method: 'POST', body: pwdForm });
       setPwdForm({ old_password: '', new_password: '' });
@@ -474,12 +592,15 @@ export function AccountDashboardPage() {
             <input type="password" className="input" required value={pwdForm.old_password} onChange={(e) => setPwdForm({ ...pwdForm, old_password: e.target.value })} />
           </div>
           <div className="form-row">
-            <label className="form-label">رمز عبور جدید (حداقل ۸ حرف شامل حرف و عدد) <span className="req-star">*</span></label>
-            <input type="password" className="input" required minLength={8} value={pwdForm.new_password} onChange={(e) => setPwdForm({ ...pwdForm, new_password: e.target.value })} />
+            <label className="form-label">رمز عبور جدید (حداقل {PASSWORD_MIN_LENGTH} نویسه شامل حروف بزرگ/کوچک، رقم و نشانه) <span className="req-star">*</span></label>
+            <input type="password" className="input" required minLength={PASSWORD_MIN_LENGTH} value={pwdForm.new_password} onChange={(e) => setPwdForm({ ...pwdForm, new_password: e.target.value })} />
           </div>
           <button type="submit" className="btn btn-secondary" disabled={busy}>تغییر رمز عبور</button>
         </form>
       </div>
+
+      <TwoFactorCard />
+            <SessionsCard />
     </AccountLayout>
   );
 }

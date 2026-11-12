@@ -1,5 +1,7 @@
 'use strict';
 
+const { likeContains } = require('../../utils/dbGuards');
+
 const express = require('express');
 const path = require('path');
 const multer = require('multer');
@@ -19,20 +21,28 @@ const STATUS_LABEL = {
   waiting_team: 'منتظر تیم', resolved: 'حل‌شده', closed: 'بسته'
 };
 
+const { documentFileFilter, randomFileName, assertFileSignature } = require('../../middleware/upload');
+
 const privateUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, config.storageDir),
-    filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname).toLowerCase().slice(0, 10);
-      cb(null, `${uuid()}${ext}`);
-    }
+    filename: (req, file, cb) => cb(null, randomFileName(file.originalname, '.bin'))
   }),
-  limits: { fileSize: config.maxUploadBytes, files: 3 },
-  fileFilter: (req, file, cb) => {
-    if (config.allowedUploadMimes.includes(file.mimetype)) cb(null, true);
-    else cb(ApiError.validation('نوع فایل مجاز نیست.'));
-  }
+  limits: { fileSize: config.maxUploadBytes, files: 3, fields: 20 },
+  fileFilter: documentFileFilter
 });
+
+function verifyUploadedFiles(req, res, next) {
+  try {
+    for (const file of req.files || []) assertFileSignature(file);
+    next();
+  } catch (err) {
+    for (const file of req.files || []) {
+      try { require('fs').unlinkSync(file.path); } catch { /* ignore */ }
+    }
+    next(err);
+  }
+}
 
 function ticketView(row, user) {
   const isOwner = row.user_id === user.id;
@@ -81,7 +91,7 @@ router.use('/staff/tickets', requireAuth);
 
 // ---------- customer ----------
 
-router.post('/tickets', rateLimit({ name: 'create-ticket', windowSec: 60, max: 8 }), privateUpload.array('files', 3), (req, res, next) => {
+router.post('/tickets', rateLimit({ name: 'create-ticket', windowSec: 60, max: 8 }), privateUpload.array('files', 3), verifyUploadedFiles, (req, res, next) => {
   try {
     const data = validate(req.body)
       .string('subject', { min: 3, max: 200 })
@@ -169,7 +179,7 @@ router.get('/staff/tickets', requireRole('support', 'admin'), (req, res, next) =
     const where = [];
     const params = [];
     if (req.query.status) { where.push('t.status = ?'); params.push(req.query.status); }
-    if (req.query.q) { where.push('(t.code LIKE ? OR t.subject LIKE ? OR u.full_name LIKE ?)'); params.push(`%${req.query.q}%`, `%${req.query.q}%`, `%${req.query.q}%`); }
+    if (req.query.q) { where.push("(t.code LIKE ? ESCAPE '\\' OR t.subject LIKE ? ESCAPE '\\' OR u.full_name LIKE ? ESCAPE '\\')"); params.push(likeContains(req.query.q), likeContains(req.query.q), likeContains(req.query.q)); }
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
     const items = all(
       `SELECT t.*, u.full_name AS customer_name FROM tickets t JOIN users u ON u.id = t.user_id

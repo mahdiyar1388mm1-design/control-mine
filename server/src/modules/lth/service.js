@@ -1,5 +1,7 @@
 'use strict';
 
+const { likeContains } = require('../../utils/dbGuards');
+
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -2029,9 +2031,9 @@ function searchProtocol(staffUser, query = {}) {
     const wParams = [];
     if (rawQ) {
       wWhere.push(
-        '(u.full_name LIKE ? OR u.phone LIKE ? OR u.email LIKE ? OR w.wallet_serial LIKE ? OR u.id = ?)'
+        "(u.full_name LIKE ? ESCAPE '\\' OR u.phone LIKE ? ESCAPE '\\' OR u.email LIKE ? ESCAPE '\\' OR w.wallet_serial LIKE ? ESCAPE '\\' OR u.id = ?)"
       );
-      wParams.push(`%${rawQ}%`, `%${compactQ}%`, `%${rawQ}%`, `%${compactQ}%`, rawQ);
+      wParams.push(likeContains(rawQ), likeContains(compactQ), likeContains(rawQ), likeContains(compactQ), rawQ);
     }
     const wSql = wWhere.length ? `WHERE ${wWhere.join(' AND ')}` : '';
     const rawWallets = all(
@@ -2080,9 +2082,9 @@ function searchProtocol(staffUser, query = {}) {
     const cParams = [];
     if (rawQ) {
       cWhere.push(
-        '(h.contract_code LIKE ? OR p.code LIKE ? OR u.full_name LIKE ? OR u.phone LIKE ?)'
+        "(h.contract_code LIKE ? ESCAPE '\\' OR p.code LIKE ? ESCAPE '\\' OR u.full_name LIKE ? ESCAPE '\\' OR u.phone LIKE ? ESCAPE '\\')"
       );
-      cParams.push(`%${compactQ.toUpperCase()}%`, `%${compactQ.toUpperCase()}%`, `%${rawQ}%`, `%${compactQ}%`);
+      cParams.push(likeContains(compactQ.toUpperCase()), likeContains(compactQ.toUpperCase()), likeContains(rawQ), likeContains(compactQ));
     }
     if (query.contract_status === 'unlocked') {
       cWhere.push('h.stake_unlocked = 1');
@@ -2143,15 +2145,15 @@ function searchProtocol(staffUser, query = {}) {
     const swParams = [];
     if (rawQ) {
       swWhere.push(
-        '(w.code LIKE ? OR w.sheba_iban LIKE ? OR w.bank_ref LIKE ? OR w.account_holder_name LIKE ? OR u.full_name LIKE ? OR u.phone LIKE ?)'
+        "(w.code LIKE ? ESCAPE '\\' OR w.sheba_iban LIKE ? ESCAPE '\\' OR w.bank_ref LIKE ? ESCAPE '\\' OR w.account_holder_name LIKE ? ESCAPE '\\' OR u.full_name LIKE ? ESCAPE '\\' OR u.phone LIKE ? ESCAPE '\\')"
       );
       swParams.push(
-        `%${compactQ.toUpperCase()}%`,
-        `%${compactQ.toUpperCase()}%`,
-        `%${rawQ}%`,
-        `%${rawQ}%`,
-        `%${rawQ}%`,
-        `%${compactQ}%`
+        likeContains(compactQ.toUpperCase()),
+        likeContains(compactQ.toUpperCase()),
+        likeContains(rawQ),
+        likeContains(rawQ),
+        likeContains(rawQ),
+        likeContains(compactQ)
       );
     }
     if (query.withdrawal_status && ['pending', 'paid', 'rejected', 'canceled'].includes(query.withdrawal_status)) {
@@ -2181,8 +2183,8 @@ function searchProtocol(staffUser, query = {}) {
     const trWhere = [];
     const trParams = [];
     if (rawQ) {
-      trWhere.push('(t.code LIKE ? OR t.note LIKE ? OR s.full_name LIKE ? OR r.full_name LIKE ? OR s.phone LIKE ? OR r.phone LIKE ?)');
-      trParams.push(`%${compactQ.toUpperCase()}%`, `%${rawQ}%`, `%${rawQ}%`, `%${rawQ}%`, `%${compactQ}%`, `%${compactQ}%`);
+      trWhere.push("(t.code LIKE ? ESCAPE '\\' OR t.note LIKE ? ESCAPE '\\' OR s.full_name LIKE ? ESCAPE '\\' OR r.full_name LIKE ? ESCAPE '\\' OR s.phone LIKE ? ESCAPE '\\' OR r.phone LIKE ? ESCAPE '\\')");
+      trParams.push(likeContains(compactQ.toUpperCase()), likeContains(rawQ), likeContains(rawQ), likeContains(rawQ), likeContains(compactQ), likeContains(compactQ));
     }
     const trSql = trWhere.length ? `WHERE ${trWhere.join(' AND ')}` : '';
     transfers = all(
@@ -2218,8 +2220,8 @@ function searchProtocol(staffUser, query = {}) {
     const lWhere = [];
     const lParams = [];
     if (rawQ) {
-      lWhere.push('(l.note LIKE ? OR l.ref_id LIKE ? OR u.full_name LIKE ? OR u.phone LIKE ?)');
-      lParams.push(`%${rawQ}%`, `%${compactQ}%`, `%${rawQ}%`, `%${compactQ}%`);
+      lWhere.push("(l.note LIKE ? ESCAPE '\\' OR l.ref_id LIKE ? ESCAPE '\\' OR u.full_name LIKE ? ESCAPE '\\' OR u.phone LIKE ? ESCAPE '\\')");
+      lParams.push(likeContains(rawQ), likeContains(compactQ), likeContains(rawQ), likeContains(compactQ));
     }
     if (query.ledger_type) {
       lWhere.push('l.entry_type = ?');
@@ -2258,8 +2260,8 @@ function searchProtocol(staffUser, query = {}) {
     const tWhere = [];
     const tParams = [];
     if (rawQ) {
-      tWhere.push('(tl.note LIKE ? OR tl.ref_id LIKE ? OR u.full_name LIKE ?)');
-      tParams.push(`%${rawQ}%`, `%${compactQ}%`, `%${rawQ}%`);
+      tWhere.push("(tl.note LIKE ? ESCAPE '\\' OR tl.ref_id LIKE ? ESCAPE '\\' OR u.full_name LIKE ? ESCAPE '\\')");
+      tParams.push(likeContains(rawQ), likeContains(compactQ), likeContains(rawQ));
     }
     const tSql = tWhere.length ? `WHERE ${tWhere.join(' AND ')}` : '';
     treasuryEvents = all(

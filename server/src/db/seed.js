@@ -13,6 +13,7 @@ const config = require('../config');
 const { migrate } = require('./migrate');
 const { get, run, tx, close } = require('./index');
 const { hashPassword } = require('../utils/password');
+const { audit } = require('../modules/platform/service');
 const { uuid, nowIso } = require('../utils/validate');
 const lthService = require('../modules/lth/service');
 const lthMath = require('../modules/lth/math');
@@ -149,7 +150,8 @@ function seed({ silent = false } = {}) {
   const future8h = new Date(Date.now() + 8 * 3600 * 1000).toISOString();
   const past3h = new Date(Date.now() - 3 * 3600 * 1000).toISOString();
 
-  // Default test password for synthetic staff & demo accounts (documented in docs/04-testing-and-seed.md)
+  // Default test password for synthetic staff & demo accounts (documented in docs/04-testing-and-seed.md).
+  // Seeded accounts are development/test fixtures only; production deployments must not seed.
   const defaultPass = hashPassword('Cm@Test1405!');
 
   const users = {
@@ -377,6 +379,10 @@ function seed({ silent = false } = {}) {
         'INSERT INTO users (id, phone, email, full_name, password_hash, password_salt, role, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [u.id, u.phone, u.email, u.full_name, defaultPass.passwordHash, defaultPass.passwordSalt, u.role, 'active', past2d, past2d]
       );
+      run(
+        'INSERT INTO password_history (id, user_id, password_hash, password_salt, created_at) VALUES (?, ?, ?, ?, ?)',
+        [uuid(), u.id, defaultPass.passwordHash, defaultPass.passwordSalt, past2d]
+      );
     }
 
     // Customer default addresses
@@ -460,9 +466,9 @@ function seed({ silent = false } = {}) {
     });
     run(
       `INSERT INTO orders (id, code, user_id, status, subtotal_toman, shipping_toman, discount_toman, total_toman,
-         address_snapshot, shipping_method, tracking_code, idempotency_key, cancel_reason, created_at, updated_at)
-       VALUES (?, 'CM-SEED2401', ?, 'paid', ?, 0, 0, ?, ?, 'post', NULL, 'seed-ord-1', NULL, ?, ?)`,
-      [ord1Id, users.customer.id, sku0.price, sku0.price, addrSnap1, past5h, past5h]
+         address_snapshot, address_id, shipping_method, tracking_code, idempotency_key, cancel_reason, created_at, updated_at)
+       VALUES (?, 'CM-SEED2401', ?, 'paid', ?, 0, 0, ?, ?, ?, 'post', NULL, 'seed-ord-1', NULL, ?, ?)`,
+      [ord1Id, users.customer.id, sku0.price, sku0.price, addrSnap1, addr1Id, past5h, past5h]
     );
     run(
       `INSERT INTO order_items (id, order_id, sku_id, product_name, sku_code, variant_attrs, unit_price_toman, unit_cost_toman, quantity, line_total_toman)
@@ -532,11 +538,8 @@ function seed({ silent = false } = {}) {
     run('INSERT INTO ticket_messages (id, ticket_id, author_id, author_role, body, created_at) VALUES (?, ?, ?, ?, ?, ?)',
       [uuid(), tk1Id, users.customer.id, 'customer', 'سلام، لطفاً در صورت امکان بستهٔ سفارش CM-SEED2401 بین ساعت ۹ تا ۱۴ به نگهبانی کارگاه تحویل داده شود.', past3h]);
 
-    // Initial audit entry
-    run(
-      'INSERT INTO audit_log (id, actor_id, actor_role, action, entity_type, entity_id, detail, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [uuid(), users.admin.id, 'admin', 'system.seed', 'system', 'v1', JSON.stringify({ note: 'initial synthetic seed' }), now]
-    );
+    // Initial audit entry (written through the hash-chained helper so verification passes).
+    audit(users.admin.id, 'admin', 'system.seed', 'system', 'v1', { note: 'initial synthetic seed' });
   });
 
   seedLthDemoIfEmpty({ silent });

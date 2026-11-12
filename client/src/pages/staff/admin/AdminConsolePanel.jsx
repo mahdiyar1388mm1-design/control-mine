@@ -8,6 +8,7 @@ import { PeoplePanel } from './PeoplePanel';
 import { OrdersPanel } from './OrdersPanel';
 import { TreasuryPanel } from './TreasuryPanel';
 import { AuditPanel, SettingsPanel } from './SettingsAuditPanel';
+import { SecurityPanel } from './SecurityPanel';
 import { AdminLthPanel } from '../AdminLthPanel';
 
 const TABS = [
@@ -17,6 +18,7 @@ const TABS = [
   { id: 'orders', label: 'سفارش‌ها', icon: 'bag', hint: 'پیگیری فروش' },
   { id: 'treasury', label: 'خزانه', icon: 'coin', hint: 'جریان نقدی خودکار' },
   { id: 'lth', label: 'LTH', icon: 'wallet', hint: 'پروتکل و ریگلاژ' },
+  { id: 'security', label: 'امنیت و داده', icon: 'lock', hint: 'سخت‌سازی و ممیزی' },
   { id: 'settings', label: 'تنظیمات', icon: 'settings', hint: 'فروشگاه و ارسال' },
   { id: 'audit', label: 'ممیزی', icon: 'shield', hint: 'سابقهٔ عملیات' }
 ];
@@ -367,6 +369,7 @@ export function AdminConsolePanel() {
             <AdminLthPanel />
           </div>
         )}
+        {tab === 'security' && <SecurityPanel />}
         {tab === 'settings' && <SettingsPanel />}
         {tab === 'audit' && <AuditPanel />}
       </main>

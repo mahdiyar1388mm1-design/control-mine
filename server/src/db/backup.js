@@ -19,7 +19,7 @@ function createBackup({ destDir, encryptionPassphrase } = {}) {
   const escaped = rawFile.replace(/'/g, "''");
   d.exec(`VACUUM INTO '${escaped}'`);
 
-  const pass = encryptionPassphrase || process.env.CM_BACKUP_KEY || '';
+  const pass = encryptionPassphrase || config.backupKey || '';
   if (!pass) {
     return { path: rawFile, encrypted: false, size_bytes: fs.statSync(rawFile).size };
   }

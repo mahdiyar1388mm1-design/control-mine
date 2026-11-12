@@ -1,5 +1,7 @@
 'use strict';
 
+const { likeContains } = require('../../utils/dbGuards');
+
 const { all, get, run, tx } = require('../../db');
 const { ApiError } = require('../../utils/errors');
 const { uuid, nowIso, humanCode, validate, parsePagination, parseJsonObject, parseJsonArray } = require('../../utils/validate');
@@ -113,7 +115,7 @@ function listServices(query) {
   const where = ['s.is_active = 1'];
   const params = [];
   if (query.category) { where.push('c.slug = ?'); params.push(query.category); }
-  if (query.q) { where.push('(s.name LIKE ? OR s.description LIKE ?)'); params.push(`%${query.q}%`, `%${query.q}%`); }
+  if (query.q) { where.push("(s.name LIKE ? ESCAPE '\\' OR s.description LIKE ? ESCAPE '\\')"); params.push(likeContains(query.q), likeContains(query.q)); }
   const whereSql = where.join(' AND ');
   const items = all(
     `SELECT s.*, c.name AS category_name, c.slug AS category_slug FROM services s
@@ -415,7 +417,7 @@ function staffQueue(user, query) {
   }
   if (query.service) { where.push('s.slug = ?'); params.push(query.service); }
   if (query.priority) { where.push('r.priority = ?'); params.push(query.priority); }
-  if (query.q) { where.push('(r.code LIKE ? OR u.full_name LIKE ?)'); params.push(`%${query.q}%`, `%${query.q}%`); }
+  if (query.q) { where.push("(r.code LIKE ? ESCAPE '\\' OR u.full_name LIKE ? ESCAPE '\\')"); params.push(likeContains(query.q), likeContains(query.q)); }
   if (query.mine === '1') { where.push('r.assigned_to = ?'); params.push(user.id); }
   if (query.sla === 'breached') { where.push('r.due_at < ?'); params.push(nowIso()); }
   if (query.sla === 'at_risk') {

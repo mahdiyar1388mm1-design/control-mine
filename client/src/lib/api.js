@@ -5,9 +5,13 @@ import { formatPersianDigits } from './format';
  * - Always uses relative /api/v1 paths (never localhost).
  * - Preserves structured error codes (NETWORK_ERROR, UNAUTHORIZED, FORBIDDEN, VALIDATION_ERROR, etc.).
  * - Never masks server failures as empty or zero values.
+ * - Sends the double-submit CSRF token on state-changing cookie-auth requests.
+ * - Transparently refreshes the session once on 401 before surfacing the error.
  */
 
 const TOKEN_KEY = 'cm_session_token';
+const REFRESH_KEY = 'cm_refresh_token';
+const CSRF_KEY = 'cm_csrf_token';
 const FORMATTED_CURRENCY_KEY = /(?:irr|toman).*formatted|formatted.*(?:irr|toman)/i;
 
 function localizeFormattedCurrency(value) {
@@ -24,21 +28,50 @@ function localizeFormattedCurrency(value) {
   ]));
 }
 
-export function getStoredToken() {
+function readStore(key) {
   try {
-    return localStorage.getItem(TOKEN_KEY);
+    return localStorage.getItem(key);
   } catch {
     return null;
   }
 }
 
-export function setStoredToken(token) {
+function writeStore(key, value) {
   try {
-    if (token) localStorage.setItem(TOKEN_KEY, token);
-    else localStorage.removeItem(TOKEN_KEY);
+    if (value) localStorage.setItem(key, value);
+    else localStorage.removeItem(key);
   } catch {
     /* ignore storage quota errors */
   }
+}
+
+export function getStoredToken() {
+  return readStore(TOKEN_KEY);
+}
+
+export function setStoredToken(token) {
+  writeStore(TOKEN_KEY, token);
+}
+
+export function getRefreshToken() {
+  return readStore(REFRESH_KEY);
+}
+
+function setRefreshToken(token) {
+  writeStore(REFRESH_KEY, token);
+}
+
+function setCsrfToken(token) {
+  writeStore(CSRF_KEY, token);
+}
+
+function readCookie(name) {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function csrfHeaderValue() {
+  return readCookie('cm_csrf') || readStore(CSRF_KEY) || '';
 }
 
 export class ClientApiError extends Error {
@@ -59,17 +92,41 @@ export function newIdempotencyKey(prefix = 'cm') {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-export async function apiFetch(path, { method = 'GET', body, headers = {}, idempotencyKey, signal } = {}) {
-  const reqHeaders = {
-    'X-CM-Client': 'web',
-    ...headers
-  };
+let refreshInFlight = null;
+
+/** Rotates the refresh token once; concurrent 401s share the same call. */
+async function refreshSession() {
+  if (refreshInFlight) return refreshInFlight;
+  const refreshToken = getRefreshToken();
+  const body = refreshToken ? JSON.stringify({ refresh_token: refreshToken }) : undefined;
+  refreshInFlight = (async () => {
+    const res = await fetch('/api/v1/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CM-Client': 'web' },
+      body,
+      credentials: 'include'
+    });
+    if (!res.ok) return null;
+    let data = null;
+    try { data = await res.json(); } catch { data = null; }
+    if (!data) return null;
+    if (data.token) setStoredToken(data.token);
+    if (data.refreshToken) setRefreshToken(data.refreshToken);
+    return data;
+  })()
+    .catch(() => null)
+    .finally(() => { refreshInFlight = null; });
+  return refreshInFlight;
+}
+
+async function doFetch(path, { method, body, headers, idempotencyKey, signal }) {
+  const reqHeaders = { 'X-CM-Client': 'web', ...headers };
   const token = getStoredToken();
-  if (token && !reqHeaders.Authorization) {
-    reqHeaders.Authorization = `Bearer ${token}`;
-  }
-  if (idempotencyKey) {
-    reqHeaders['Idempotency-Key'] = idempotencyKey;
+  if (token && !reqHeaders.Authorization) reqHeaders.Authorization = `Bearer ${token}`;
+  if (idempotencyKey) reqHeaders['Idempotency-Key'] = idempotencyKey;
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+    const csrf = csrfHeaderValue();
+    if (csrf) reqHeaders['X-CSRF-Token'] = csrf;
   }
 
   let fetchBody;
@@ -80,15 +137,19 @@ export async function apiFetch(path, { method = 'GET', body, headers = {}, idemp
     fetchBody = JSON.stringify(body);
   }
 
+  return fetch(`/api/v1${path}`, {
+    method,
+    headers: reqHeaders,
+    body: fetchBody,
+    credentials: 'include',
+    signal
+  });
+}
+
+export async function apiFetch(path, { method = 'GET', body, headers = {}, idempotencyKey, signal, retry = true } = {}) {
   let res;
   try {
-    res = await fetch(`/api/v1${path}`, {
-      method,
-      headers: reqHeaders,
-      body: fetchBody,
-      credentials: 'include',
-      signal
-    });
+    res = await doFetch(path, { method, body, headers, idempotencyKey, signal });
   } catch (networkErr) {
     if (networkErr && networkErr.name === 'AbortError') {
       throw new ClientApiError({ status: 0, code: 'CANCELED', message: 'درخواست لغو شد.' });
@@ -100,6 +161,12 @@ export async function apiFetch(path, { method = 'GET', body, headers = {}, idemp
         ? 'اتصال اینترنت قطع است. لطفاً پس از برقراری اتصال دوباره تلاش کنید.'
         : 'برقراری ارتباط با سرور ممکن نشد. اتصال شبکه را بررسی و دوباره تلاش کنید.'
     });
+  }
+
+  // One transparent refresh attempt for expired short-lived access tokens.
+  if (res.status === 401 && retry && !path.startsWith('/auth/refresh') && !path.startsWith('/auth/login')) {
+    const refreshed = await refreshSession();
+    if (refreshed) return apiFetch(path, { method, body, headers, idempotencyKey, signal, retry: false });
   }
 
   const ct = res.headers.get('content-type') || '';
@@ -124,6 +191,32 @@ export async function apiFetch(path, { method = 'GET', body, headers = {}, idemp
   }
 
   return localizeFormattedCurrency(parsed);
+}
+
+/** Fetches (and caches) a double-submit CSRF token for cookie-based sessions. */
+export async function ensureCsrfToken() {
+  try {
+    const res = await fetch('/api/v1/auth/csrf', { credentials: 'include', headers: { 'X-CM-Client': 'web' } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data && data.csrf_token) setCsrfToken(data.csrf_token);
+    return data ? data.csrf_token : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Stores the token pair returned by login/register/otp/refresh. */
+export function storeSessionTokens(res) {
+  if (!res) return;
+  if (res.token) setStoredToken(res.token);
+  if (res.refreshToken) setRefreshToken(res.refreshToken);
+}
+
+export function clearSessionTokens() {
+  setStoredToken(null);
+  writeStore(REFRESH_KEY, null);
+  writeStore(CSRF_KEY, null);
 }
 
 export async function downloadPrivateFile(fileId, fallbackName = 'document') {

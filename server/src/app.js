@@ -6,9 +6,12 @@ const path = require('path');
 const config = require('./config');
 const { get } = require('./db');
 const { requestId } = require('./middleware/requestId');
-const { parseCookies, attachUser } = require('./middleware/auth');
+const { parseCookies, attachUser, csrfProtection } = require('./middleware/auth');
+const { securityHeaders, sameOriginGuard } = require('./middleware/security');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
+const { rateLimit } = require('./middleware/rateLimit');
 const { ApiError } = require('./utils/errors');
+const { integrityCheck, getDb } = require('./db');
 const logger = require('./utils/logger');
 
 const authRoutes = require('./modules/auth/routes');
@@ -23,6 +26,7 @@ const fileRoutes = require('./modules/files/routes');
 const notificationRoutes = require('./modules/notifications/routes');
 const adminRoutes = require('./modules/admin/routes');
 const adminConsoleRoutes = require('./modules/admin/console');
+const adminSecurityRoutes = require('./modules/admin/security');
 const lthRoutes = require('./modules/lth/routes');
 
 const pkg = require('../package.json');
@@ -30,9 +34,13 @@ const pkg = require('../package.json');
 function createApp() {
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', 1);
+  // Only trust the reverse proxy in front of us (one hop), not arbitrary clients.
+  app.set('trust proxy', config.security.trustProxy ? 1 : false);
+  app.set('query parser', 'simple');
+  app.set('json escape', true);
 
   app.use(requestId);
+  app.use(securityHeaders);
 
   // Lightweight access log (skips static assets) so proxy/preview traffic stays visible in container logs.
   app.use((req, res, next) => {
@@ -53,49 +61,17 @@ function createApp() {
     next();
   });
 
-  // Baseline security headers (iframe-friendly unless CM_DENY_IFRAME=1 for standalone prod).
-  app.use((req, res, next) => {
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-    if (process.env.CM_DENY_IFRAME === '1') {
-      res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-    }
-    next();
-  });
-
-  app.use(express.json({ limit: '1mb' }));
-  app.use(express.urlencoded({ extended: false, limit: '256kb' }));
+  // Strict JSON/urlencoded parsers: bounded size, no prototype pollution, no nested objects.
+  app.use(express.json({ limit: '512kb', strict: true, type: ['application/json', 'application/*+json'] }));
+  app.use(express.urlencoded({ extended: false, limit: '256kb', parameterLimit: 100 }));
   app.use(parseCookies);
   app.use(attachUser);
 
-  // CSRF defense for cookie-authenticated state-changing API calls.
-  app.use('/api/v1', (req, res, next) => {
-    const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
-    if (safeMethods.includes(req.method)) return next();
-    if (req.path === '/payments/sandbox/callback') return next();
-    const hasBearer = (req.header('authorization') || '').toLowerCase().startsWith('bearer ');
-    if (hasBearer) return next();
-    if (req.cookies && req.cookies.cm_token) {
-      const origin = req.header('origin');
-      const host = req.header('x-forwarded-host') || req.header('host');
-      if (origin) {
-        try {
-          const originHost = new URL(origin).host;
-          if (host && originHost !== host) {
-            return next(ApiError.forbidden('درخواست از مبدأ غیرمجاز (CSRF) مسدود شد.'));
-          }
-        } catch {
-          return next(ApiError.forbidden('مبدأ درخواست نامعتبر است.'));
-        }
-      }
-      const ct = (req.header('content-type') || '').toLowerCase();
-      const customClient = req.header('x-cm-client');
-      if (!customClient && !ct.includes('application/json') && !ct.includes('multipart/form-data')) {
-        return next(ApiError.forbidden('هدر امنیتی درخواست نامعتبر است.'));
-      }
-    }
-    return next();
-  });
+  // Cross-site request defence (origin check) + double-submit CSRF token.
+  app.use('/api', sameOriginGuard);
+  app.use('/api/v1', csrfProtection);
+  // Global API budget per IP: protects every endpoint, including ones without their own limiter.
+  app.use('/api/v1', rateLimit({ name: 'api-global', windowSec: 60, max: config.security.apiRateLimitPerMinute }));
 
   // Never cache private API responses (§16).
   app.use('/api', (req, res, next) => {
@@ -112,11 +88,22 @@ function createApp() {
     } catch {
       dbOk = false;
     }
+    let integrity = null;
+    let migrations = 0;
+    if (dbOk) {
+      try { integrity = integrityCheck()[0] || 'unknown'; } catch { integrity = 'error'; }
+      try { migrations = get('SELECT COUNT(*) AS c FROM schema_migrations').c; } catch { migrations = 0; }
+      try { void getDb(); } catch { /* ensure the handle is open for integrity checks */ }
+    }
+    res.setHeader('Cache-Control', 'no-store');
     res.status(dbOk ? 200 : 503).json({
       status: dbOk ? 'ok' : 'degraded',
       service: 'central-mine-api',
       version: pkg.version,
       db: dbOk ? 'ok' : 'error',
+      db_integrity: integrity,
+      schema_version: migrations,
+      uptime_seconds: Math.round(process.uptime()),
       timestamp: new Date().toISOString(),
       integrations: {
         payment_gateway: { mode: 'sandbox', real_connected: false },
@@ -128,14 +115,29 @@ function createApp() {
   app.get('/health', healthHandler);
   app.get('/api/v1/health', healthHandler);
 
+  // Housekeeping is an admin/maintenance operation, never public: protected by a token.
+  app.post('/api/v1/maintenance/housekeeping', (req, res, next) => {
+    const token = req.header('x-maintenance-token');
+    if (!token || !process.env.CM_MAINTENANCE_TOKEN || token !== process.env.CM_MAINTENANCE_TOKEN) {
+      return next(ApiError.forbidden('دسترسی به عملیات نگهداری مجاز نیست.'));
+    }
+    const { housekeeping } = require('./db');
+    const out = housekeeping();
+    return res.json({ ok: true, removed: out });
+  });
+
   // Public product images directory
   const publicUploadsDir = path.join(config.storageDir, '..', 'public');
   fs.mkdirSync(publicUploadsDir, { recursive: true });
   app.use('/uploads', express.static(publicUploadsDir, {
     maxAge: '7d',
+    index: false,
+    dotfiles: 'deny',
     setHeaders: (res) => {
       res.setHeader('X-Content-Type-Options', 'nosniff');
-      res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'");
+      res.setHeader('Cross-Origin-Resource-Policy', 'same-site');
+      res.setHeader('Content-Disposition', 'inline');
+      res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
     }
   }));
 
@@ -150,6 +152,7 @@ function createApp() {
   app.use('/api/v1', supportRoutes);
   app.use('/api/v1', fileRoutes);
   app.use('/api/v1', notificationRoutes);
+  app.use('/api/v1/admin/console/security', adminSecurityRoutes);
   app.use('/api/v1/admin/console', adminConsoleRoutes);
   app.use('/api/v1', adminRoutes);
   app.use('/api/v1', lthRoutes);

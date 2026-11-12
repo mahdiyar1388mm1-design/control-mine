@@ -19,7 +19,9 @@ const { requireRole } = require('../../middleware/auth');
 const { ApiError } = require('../../utils/errors');
 const { uuid, nowIso, validate, parsePagination } = require('../../utils/validate');
 const { verifyPassword } = require('../../utils/password');
-const { audit, getSetting, setSetting } = require('../platform/service');
+const { audit, getSetting, setSetting, verifyAuditChain } = require('../platform/service');
+const { likeContains } = require('../../utils/dbGuards');
+const authService = require('../auth/service');
 const catalog = require('../catalog/service');
 const lth = require('../lth/service');
 
@@ -302,8 +304,8 @@ function buildPeopleWhere(query) {
   const where = ['1 = 1'];
   const params = [];
   if (query.q) {
-    const like = `%${String(query.q).trim().replace(/^@/, '')}%`;
-    where.push('(pd.full_name LIKE ? OR pd.phone LIKE ? OR pd.username LIKE ? OR COALESCE(pd.email, \'\') LIKE ?)');
+    const like = likeContains(String(query.q).trim().replace(/^@/, ''));
+    where.push("(pd.full_name LIKE ? ESCAPE '\\' OR pd.phone LIKE ? ESCAPE '\\' OR pd.username LIKE ? ESCAPE '\\' OR COALESCE(pd.email, '') LIKE ? ESCAPE '\\')");
     params.push(like, like, like, like);
   }
   if (query.role && ROLES.includes(query.role)) {
@@ -574,9 +576,14 @@ router.patch('/people/:id', (req, res, next) => {
       ]);
     }
     if (roleChanged || statusChanged) {
-      const adminRow = get('SELECT * FROM users WHERE id = ?', [req.user.id]);
-      if (!data.current_password || !verifyPassword(data.current_password, adminRow.password_hash, adminRow.password_salt)) {
-        throw ApiError.unauthorized('برای تغییر نقش یا وضعیت حساب، رمز عبور مدیر را دوباره وارد کنید.');
+      // Two accepted proofs: a password sent with this request, or a fresh step-up proof
+      // obtained from POST /auth/verify-identity a few minutes ago.
+      const proofOk = authService.hasValidProof(req.user.id, body.reauth_proof, 'sensitive');
+      if (!proofOk) {
+        const adminRow = get('SELECT * FROM users WHERE id = ?', [req.user.id]);
+        if (!data.current_password || !verifyPassword(data.current_password, adminRow.password_hash, adminRow.password_salt)) {
+          throw ApiError.unauthorized('برای تغییر نقش یا وضعیت حساب، رمز عبور مدیر را دوباره وارد کنید.');
+        }
       }
       if (target.id === req.user.id && (data.status === 'suspended' || (data.role && data.role !== 'admin'))) {
         throw ApiError.conflict('مدیر نمی‌تواند حساب یا نقش خودش را غیرفعال/تنزل دهد.');
@@ -630,8 +637,8 @@ router.get('/products', (req, res, next) => {
     const where = ['p.deleted_at IS NULL'];
     const params = [];
     if (req.query.q) {
-      const like = `%${String(req.query.q).trim()}%`;
-      where.push('(p.name LIKE ? OR p.description LIKE ? OR COALESCE(b.name, \'\') LIKE ? OR s.code LIKE ?)');
+      const like = likeContains(String(req.query.q).trim());
+      where.push("(p.name LIKE ? ESCAPE '\\' OR p.description LIKE ? ESCAPE '\\' OR COALESCE(b.name, '') LIKE ? ESCAPE '\\' OR s.code LIKE ? ESCAPE '\\')");
       params.push(like, like, like, like);
     }
     if (req.query.status && ['active', 'draft', 'archived'].includes(req.query.status)) {
@@ -771,8 +778,8 @@ router.get('/orders', (req, res, next) => {
     const where = ['1 = 1'];
     const params = [];
     if (req.query.q) {
-      const like = `%${String(req.query.q).trim().replace(/^@/, '')}%`;
-      where.push('(o.code LIKE ? OR u.full_name LIKE ? OR u.phone LIKE ? OR u.username LIKE ?)');
+      const like = likeContains(String(req.query.q).trim().replace(/^@/, ''));
+      where.push("(o.code LIKE ? ESCAPE '\\' OR u.full_name LIKE ? ESCAPE '\\' OR u.phone LIKE ? ESCAPE '\\' OR u.username LIKE ? ESCAPE '\\')");
       params.push(like, like, like, like);
     }
     if (req.query.status) {
@@ -982,7 +989,12 @@ router.post('/treasury/adjust', (req, res, next) => {
       .int('amount_toman', { min: 1, max: 1000000000000 })
       .string('reason', { min: 3, max: 300 })
       .string('note', { required: false, default: '', max: 300 })
+      .string('reauth_proof', { required: false, max: 64 })
       .done();
+    // Money movements above one million tomans require a fresh step-up proof.
+    if (data.amount_toman >= 1000000 && !authService.hasValidProof(req.user.id, data.reauth_proof, 'sensitive')) {
+      throw ApiError.unauthorized('برای جابه‌جایی مبالغ بالای یک میلیون تومان، تأیید مجدد هویت لازم است.');
+    }
 
     const id = uuid();
     const entryType = data.direction === 'in' ? 'adjustment' : 'payout';
@@ -1026,6 +1038,18 @@ router.patch('/treasury/settings', (req, res, next) => {
       opening_balance_toman: num(getSetting('treasury_opening_balance_toman', 0)),
       low_balance_toman: num(getSetting('treasury_low_balance_toman', 5000000))
     });
+  } catch (err) { next(err); }
+});
+
+// ---------------------------------------------------------------------------
+// Audit integrity
+// ---------------------------------------------------------------------------
+
+router.get('/audit-verify', (req, res, next) => {
+  try {
+    const result = verifyAuditChain();
+    audit(req.user.id, req.user.role, 'admin.verify_audit_chain', 'audit_log', null, result);
+    res.json(result);
   } catch (err) { next(err); }
 });
 

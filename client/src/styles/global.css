@@ -1407,3 +1407,116 @@ body:has(.auth-shell) {
     width: auto;
   }
 }
+
+/* ---------- Password strength meter (auth forms) ---------- */
+.pw-meter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+.pw-meter-bar {
+  position: relative;
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border-subtle);
+  overflow: hidden;
+}
+.pw-meter-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--text-muted);
+  transition: width 0.2s ease, background 0.2s ease;
+}
+.pw-meter-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.pw-danger .pw-meter-bar > span { background: var(--danger, #dc2626); }
+.pw-danger .pw-meter-label { color: var(--danger, #dc2626); }
+.pw-warn .pw-meter-bar > span { background: #f59e0b; }
+.pw-warn .pw-meter-label { color: #b45309; }
+.pw-ok .pw-meter-bar > span { background: #16a34a; }
+.pw-ok .pw-meter-label { color: #15803d; }
+
+/* ---------- Account sessions list ---------- */
+.session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+.session-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.session-row.is-current {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.session-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.session-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.session-meta {
+  width: 100%;
+  font-size: 0.78rem;
+}
+
+/* ---------------------------------------------------------------------------
+   Two-factor authentication card (account area)
+   --------------------------------------------------------------------------- */
+.pw-security-card { display: flex; flex-direction: column; gap: 12px; }
+.pw-security-form { display: flex; flex-direction: column; gap: 10px; }
+.pw-security-form label { font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.pw-security-form input {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--line);
+  border-radius: 10px; font: inherit; background: #fff;
+}
+.pw-security-form input:focus-visible { outline: 2px solid var(--pink); outline-offset: 1px; }
+.pw-security-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.mfa-secret-box {
+  display: flex; flex-direction: column; gap: 4px; padding: 10px 12px;
+  background: var(--pink-soft, #fdf2f8); border: 1px dashed #f6c9dd; border-radius: 10px;
+}
+.mfa-secret-label { font-size: 12px; color: var(--ink-3, #7c7c8a); }
+.mfa-secret-box code { font-size: 13px; word-break: break-all; }
+.mfa-uri { font-size: 11px; color: var(--ink-2); }
+.mfa-recovery-box {
+  padding: 14px; border-radius: 12px; border: 1px solid #f6c9dd;
+  background: #fff7fb; display: flex; flex-direction: column; gap: 8px;
+}
+.mfa-recovery-box h3 { font-size: 14px; margin: 0; }
+.mfa-recovery-box p { margin: 0; font-size: 12.5px; color: var(--ink-2); }
+.mfa-recovery-list {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 6px; margin: 4px 0; padding: 0; list-style: none;
+}
+.mfa-recovery-list li {
+  padding: 6px 8px; background: #fff; border: 1px solid var(--line); border-radius: 8px; text-align: center;
+}
+.mfa-regen { border-top: 1px dashed var(--line); padding-top: 10px; margin-top: 6px; }
+.auth-mfa-step { display: flex; flex-direction: column; gap: 14px; }
+.auth-mfa-recovery { border-top: 1px dashed var(--line); padding-top: 12px; }
+.auth-submit-ghost { background: #fff; color: var(--pink-dark, #be185d); border: 1px solid #f6c9dd; }

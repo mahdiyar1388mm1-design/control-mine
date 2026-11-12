@@ -13,7 +13,7 @@ process.env.CM_STORAGE_DIR = path.join(tmpRoot, 'storage');
 process.env.CM_SECRET = 'unit-test-secret-key-0123456789abcdef0123456789abcdef';
 process.env.NODE_ENV = 'test';
 
-const { hashPassword, verifyPassword, assertPasswordStrength } = require('../src/utils/password');
+const { hashPassword, verifyPassword, assertPasswordStrength, passwordScore } = require('../src/utils/password');
 const { signToken, verifyToken, hashOtp } = require('../src/utils/token');
 const { validate } = require('../src/utils/validate');
 const { maskPhone } = require('../src/modules/platform/service');
@@ -28,6 +28,16 @@ test.after(() => {
 
 test('unit: password hashing, verification, and strength rules', () => {
   assert.throws(() => assertPasswordStrength('short'), /رمز/);
+  // Policy: length + upper + lower + digit + symbol, no sequences, no personal data.
+  assert.throws(() => assertPasswordStrength('alllowercase123!'), /رمز/);
+  assert.throws(() => assertPasswordStrength('ALLUPPERCASE123!'), /رمز/);
+  assert.throws(() => assertPasswordStrength('NoDigitsHere!!'), /رمز/);
+  assert.throws(() => assertPasswordStrength('NoSymbols12345'), /رمز/);
+  assert.throws(() => assertPasswordStrength('StrongPass1234'), /رمز/);
+  assert.throws(() => assertPasswordStrength('Qwerty1234!'), /رمز/);
+  assert.throws(() => assertPasswordStrength('SaraPass1234!', { personal: ['sara.ahmadi'] }), /رمز/);
+  assert.doesNotThrow(() => assertPasswordStrength('StrongPass123!'));
+  assert.ok(passwordScore('StrongPass123!') > passwordScore('password'));
   const { passwordHash, passwordSalt } = hashPassword('StrongPass123!');
   assert.equal(verifyPassword('StrongPass123!', passwordHash, passwordSalt), true);
   assert.equal(verifyPassword('WrongPass123!', passwordHash, passwordSalt), false);
@@ -76,9 +86,11 @@ test('unit: scenario #20 — versioned migration, rollback, and AES-256-GCM encr
   assert.equal(bkp.encrypted, true);
   assert.ok(bkp.path.endsWith('.enc'));
 
-  // Rollback all migrations (007..001) and re-apply cleanly
-  const rolled = rollback(7);
+  // Rollback all migrations (010..001) and re-apply cleanly
+  const rolled = rollback(10);
   assert.deepEqual(rolled, [
+    '010_two_factor_authentication',
+    '009_query_performance', '008_security_and_integrity',
     '007_admin_console', '006_shipping_profile', '005_db_integrity',
     '004_address_recipient_email', '003_lth_treasury_protocol', '002_lth_wallet', '001_init'
   ]);

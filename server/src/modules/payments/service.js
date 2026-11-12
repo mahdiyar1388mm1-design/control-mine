@@ -251,6 +251,21 @@ function sandboxCallback(body) {
       } else if (data.outcome === 'expired') {
         if (payment.status === 'pending') {
           run("UPDATE payments SET status = 'expired', failure_reason = 'expired_or_unknown', updated_at = ? WHERE id = ?", [now, payment.id]);
+          // An expired payment releases any stock reservation held for the pending order.
+          if (payment.order_id) {
+            let holds = [];
+            try {
+              holds = all("SELECT * FROM stock_holds WHERE order_id = ? AND status = 'held'", [payment.order_id]);
+            } catch { holds = []; }
+            if (holds.length > 0) {
+              for (const h of holds) {
+                run('UPDATE skus SET stock = stock + ?, updated_at = ? WHERE id = ?', [h.quantity, now, h.sku_id]);
+                run('INSERT INTO stock_movements (id, sku_id, delta, reason, ref_type, ref_id, actor_id, created_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?)',
+                  [crypto.randomUUID(), h.sku_id, h.quantity, 'hold_expired', 'order', payment.order_id, now]);
+                run("UPDATE stock_holds SET status = 'released' WHERE id = ?", [h.id]);
+              }
+            }
+          }
           lthService.handlePaymentOutcomeInTx(payment.id, 'expired', now);
         }
       }

@@ -7,10 +7,15 @@ function b64url(input) {
   return Buffer.from(input).toString('base64url');
 }
 
+/**
+ * Session access token (HMAC-SHA256 JWT). The `jti` claim is unique per token and
+ * `ver` distinguishes auth generations so a password change invalidates every
+ * previously issued token for that account.
+ */
 function signToken(payload, ttlSec = config.tokenTtlSec) {
   const header = b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
   const now = Math.floor(Date.now() / 1000);
-  const body = b64url(JSON.stringify({ ...payload, iat: now, exp: now + ttlSec }));
+  const body = b64url(JSON.stringify({ ...payload, jti: crypto.randomUUID(), iat: now, exp: now + ttlSec }));
   const signature = crypto
     .createHmac('sha256', config.secret)
     .update(`${header}.${body}`)
@@ -23,6 +28,16 @@ function verifyToken(token) {
   const parts = token.split('.');
   if (parts.length !== 3) return null;
   const [header, body, signature] = parts;
+
+  // Reject anything that is not the exact algorithm we issue (alg confusion).
+  let headerObj;
+  try {
+    headerObj = JSON.parse(Buffer.from(header, 'base64url').toString('utf8'));
+  } catch {
+    return null;
+  }
+  if (!headerObj || headerObj.alg !== 'HS256' || headerObj.typ !== 'JWT') return null;
+
   const expected = crypto
     .createHmac('sha256', config.secret)
     .update(`${header}.${body}`)
@@ -38,6 +53,7 @@ function verifyToken(token) {
   }
   const now = Math.floor(Date.now() / 1000);
   if (!payload || !payload.exp || payload.exp < now) return null;
+  if (!payload.sub || !payload.sid) return null;
   return payload;
 }
 
@@ -49,4 +65,29 @@ function randomOtpCode() {
   return String(crypto.randomInt(0, 1000000)).padStart(6, '0');
 }
 
-module.exports = { signToken, verifyToken, hashOtp, randomOtpCode };
+/** Refresh tokens are opaque random strings; only their SHA-256 hash is stored. */
+function generateRefreshToken() {
+  return crypto.randomBytes(48).toString('base64url');
+}
+
+function hashRefreshToken(token) {
+  return crypto.createHash('sha256').update(String(token)).digest('hex');
+}
+
+/** Double-submit CSRF token. */
+function generateCsrfToken() {
+  return crypto.randomBytes(32).toString('base64url');
+}
+
+function timingSafeEqualStrings(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+module.exports = {
+  signToken, verifyToken, hashOtp, randomOtpCode,
+  generateRefreshToken, hashRefreshToken, generateCsrfToken, timingSafeEqualStrings
+};

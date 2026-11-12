@@ -17,20 +17,30 @@ const router = express.Router();
 const publicUploadsDir = path.join(config.storageDir, '..', 'public');
 fs.mkdirSync(publicUploadsDir, { recursive: true });
 
+const { imageFileFilter, randomFileName, assertFileSignature } = require('../../middleware/upload');
+
 const upload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, publicUploadsDir),
-    filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname).toLowerCase().slice(0, 10) || '.png';
-      cb(null, `${uuid()}${ext}`);
-    }
+    // Filenames are always regenerated from a UUID; the client name is never trusted.
+    filename: (req, file, cb) => cb(null, randomFileName(file.originalname, '.png'))
   }),
-  limits: { fileSize: config.maxUploadBytes, files: 5 },
-  fileFilter: (req, file, cb) => {
-    if (['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) cb(null, true);
-    else cb(ApiError.validation('فقط تصویر JPEG/PNG/WebP مجاز است.'));
-  }
+  limits: { fileSize: config.maxUploadBytes, files: 5, fields: 20 },
+  fileFilter: imageFileFilter
 });
+
+/** Rejects payloads whose bytes do not match the declared image type. */
+function verifyUploadedImages(req, res, next) {
+  try {
+    for (const file of req.files || []) assertFileSignature(file);
+    next();
+  } catch (err) {
+    for (const file of req.files || []) {
+      try { require('fs').unlinkSync(file.path); } catch { /* ignore */ }
+    }
+    next(err);
+  }
+}
 
 // ---------- public ----------
 
@@ -104,7 +114,7 @@ router.delete('/admin/products/:id', requireRole('admin'), (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/admin/products/:id/images', requireRole('admin'), upload.array('images', 5), (req, res, next) => {
+router.post('/admin/products/:id/images', requireRole('admin'), upload.array('images', 5), verifyUploadedImages, (req, res, next) => {
   try {
     const files = req.files || [];
     if (!files.length) throw ApiError.validation('فایل تصویری دریافت نشد.');

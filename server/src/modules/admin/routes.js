@@ -1,5 +1,7 @@
 'use strict';
 
+const { likeContains } = require('../../utils/dbGuards');
+
 const express = require('express');
 const { all, get, run, tx } = require('../../db');
 const { requireAuth, requireRole, requireStaff } = require('../../middleware/auth');
@@ -101,8 +103,8 @@ router.get('/admin/users', requireRole('admin'), (req, res, next) => {
       params.push(req.query.status);
     }
     if (req.query.q) {
-      where.push('(full_name LIKE ? OR phone LIKE ? OR username LIKE ?)');
-      params.push(`%${req.query.q}%`, `%${req.query.q}%`, `%${req.query.q}%`);
+      where.push("(full_name LIKE ? ESCAPE '\\' OR phone LIKE ? ESCAPE '\\' OR username LIKE ? ESCAPE '\\')");
+      params.push(likeContains(req.query.q), likeContains(req.query.q), likeContains(req.query.q));
     }
     const revealPhone = req.query.reveal_phone === '1';
     if (revealPhone) {

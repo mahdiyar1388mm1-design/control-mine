@@ -183,7 +183,8 @@ router.patch('/addresses/:id', (req, res, next) => {
 router.delete('/addresses/:id', (req, res, next) => {
   try {
     const existing = ownedAddress(req.user.id, req.params.id);
-    const used = get('SELECT COUNT(*) AS c FROM orders WHERE user_id = ? AND address_snapshot LIKE ?', [req.user.id, `%${existing.id}%`]).c;
+    // Real foreign key (orders.address_id) instead of matching the JSON snapshot text.
+    const used = get('SELECT COUNT(*) AS c FROM orders WHERE user_id = ? AND address_id = ?', [req.user.id, existing.id]).c;
     if (used > 0) {
       throw ApiError.conflict('این نشانی در سفارش‌های قبلی استفاده شده و قابل حذف نیست؛ می‌توانید آن را ویرایش کنید.');
     }

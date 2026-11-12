@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { apiFetch, getStoredToken, setStoredToken } from '../lib/api';
+import { apiFetch, getStoredToken, storeSessionTokens, clearSessionTokens, ensureCsrfToken } from '../lib/api';
 
 const AuthContext = createContext(null);
 
@@ -32,7 +32,7 @@ export function AuthProvider({ children }) {
       return data.user;
     } catch (err) {
       if (err.status === 401) {
-        setStoredToken(null);
+        clearSessionTokens();
         setUser(null);
         setCartCount(0);
         setUnreadCount(0);
@@ -53,7 +53,25 @@ export function AuthProvider({ children }) {
       method: 'POST',
       body: { phone, password }
     });
-    if (res.token) setStoredToken(res.token);
+    // Second factor pending: no session yet, the UI must ask for the code.
+    if (res.mfa_required) return res;
+    storeSessionTokens(res);
+    await ensureCsrfToken();
+    setUser(res.user);
+    await refreshCounts();
+    return res;
+  };
+
+  /** Completes a two-factor login with a TOTP code or a recovery code. */
+  const verifyMfa = async ({ challengeToken, code, recoveryCode }) => {
+    const res = await apiFetch('/auth/mfa/verify', {
+      method: 'POST',
+      body: recoveryCode
+        ? { challenge_token: challengeToken, recovery_code: recoveryCode }
+        : { challenge_token: challengeToken, code }
+    });
+    storeSessionTokens(res);
+    await ensureCsrfToken();
     setUser(res.user);
     await refreshCounts();
     return res;
@@ -64,7 +82,8 @@ export function AuthProvider({ children }) {
       method: 'POST',
       body: { phone, full_name, password, email: email || undefined }
     });
-    if (res.token) setStoredToken(res.token);
+    storeSessionTokens(res);
+    await ensureCsrfToken();
     setUser(res.user);
     await refreshCounts();
     return res;
@@ -82,7 +101,8 @@ export function AuthProvider({ children }) {
       method: 'POST',
       body: { phone, code }
     });
-    if (res.token) setStoredToken(res.token);
+    storeSessionTokens(res);
+    await ensureCsrfToken();
     setUser(res.user);
     await refreshCounts();
     return res;
@@ -94,12 +114,26 @@ export function AuthProvider({ children }) {
     } catch {
       /* session may already be expired */
     } finally {
-      setStoredToken(null);
+      clearSessionTokens();
       setUser(null);
       setCartCount(0);
       setUnreadCount(0);
     }
   };
+
+  /** Closes every other device session and keeps the current one. */
+  const logoutEverywhere = async () => {
+    try {
+      const res = await apiFetch('/auth/logout-all', { method: 'POST' });
+      return res;
+    } finally {
+      await refreshMe();
+    }
+  };
+
+  /** Step-up authentication for sensitive admin actions. */
+  const verifyIdentity = async (password, purpose = 'sensitive') =>
+    apiFetch('/auth/verify-identity', { method: 'POST', body: { password, purpose } });
 
   return (
     <AuthContext.Provider value={{
@@ -109,10 +143,13 @@ export function AuthProvider({ children }) {
       unreadCount,
       hasTokenHint: Boolean(getStoredToken()),
       login,
+      verifyMfa,
       register,
       requestOtp,
       verifyOtp,
       logout,
+      logoutEverywhere,
+      verifyIdentity,
       refreshMe,
       refreshCounts
     }}>

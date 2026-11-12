@@ -1,5 +1,7 @@
 'use strict';
 
+const { likeContains } = require('../../utils/dbGuards');
+
 const { all, get, run, tx } = require('../../db');
 const { ApiError } = require('../../utils/errors');
 const { uuid, nowIso, validate, parsePagination, parseJsonObject, humanCode } = require('../../utils/validate');
@@ -37,8 +39,8 @@ function listProducts(query) {
   const where = ['p.deleted_at IS NULL', "p.status = 'active'"];
   const params = [];
   if (query.q) {
-    where.push('(p.name LIKE ? OR p.description LIKE ? OR b.name LIKE ?)');
-    const like = `%${query.q}%`;
+    where.push("(p.name LIKE ? ESCAPE '\\' OR p.description LIKE ? ESCAPE '\\' OR b.name LIKE ? ESCAPE '\\')");
+    const like = likeContains(query.q);
     params.push(like, like, like);
   }
   if (query.category) {
@@ -355,8 +357,8 @@ function listSkusAdmin(query) {
   const where = ['p.deleted_at IS NULL'];
   const params = [];
   if (query.q) {
-    where.push('(s.code LIKE ? OR p.name LIKE ?)');
-    params.push(`%${query.q}%`, `%${query.q}%`);
+    where.push("(s.code LIKE ? ESCAPE '\\' OR p.name LIKE ? ESCAPE '\\')");
+    params.push(likeContains(query.q), likeContains(query.q));
   }
   if (query.low_stock === '1') {
     where.push('s.stock <= 5');

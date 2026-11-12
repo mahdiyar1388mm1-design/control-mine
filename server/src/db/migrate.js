@@ -36,6 +36,20 @@ function migrate(log = () => {}) {
       throw new Error(`migration ${version} failed: ${err.message}`);
     }
   }
+  syncSchemaVersion(d);
+}
+
+/**
+ * Keeps the stored schema marker in the settings table equal to the number of
+ * applied migrations, so a new migration can never leave a stale version behind
+ * (health checks and the security center both read it).
+ */
+function syncSchemaVersion(d) {
+  const hasSettings = d.prepare("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'settings'").get();
+  if (!hasSettings) return;
+  const applied = d.prepare('SELECT COUNT(*) AS c FROM schema_migrations').get().c;
+  d.prepare("INSERT INTO settings (key, value) VALUES ('db_schema_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+    .run(String(applied));
 }
 
 function rollback(steps = 1, log = () => {}) {
@@ -78,4 +92,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { migrate, rollback };
+module.exports = { migrate, rollback, syncSchemaVersion };

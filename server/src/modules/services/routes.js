@@ -12,20 +12,29 @@ const { uuid } = require('../../utils/validate');
 
 const router = express.Router();
 
+const { documentFileFilter, randomFileName, assertFileSignature } = require('../../middleware/upload');
+
 const privateUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, config.storageDir),
-    filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname).toLowerCase().slice(0, 10);
-      cb(null, `${uuid()}${ext}`);
-    }
+    filename: (req, file, cb) => cb(null, randomFileName(file.originalname, '.bin'))
   }),
-  limits: { fileSize: config.maxUploadBytes, files: 5 },
-  fileFilter: (req, file, cb) => {
-    if (config.allowedUploadMimes.includes(file.mimetype)) cb(null, true);
-    else cb(ApiError.validation('نوع فایل مجاز نیست.', [{ field: 'files', message: `نوع ${file.mimetype} مجاز نیست.` }]));
-  }
+  limits: { fileSize: config.maxUploadBytes, files: 5, fields: 30 },
+  fileFilter: documentFileFilter
 });
+
+/** Verifies real file signatures before the private files are registered. */
+function verifyUploadedFiles(req, res, next) {
+  try {
+    for (const file of req.files || []) assertFileSignature(file);
+    next();
+  } catch (err) {
+    for (const file of req.files || []) {
+      try { require('fs').unlinkSync(file.path); } catch { /* ignore */ }
+    }
+    next(err);
+  }
+}
 
 // ---------- customer ----------
 
@@ -50,6 +59,7 @@ router.post(
   requireAuth,
   rateLimit({ name: 'create-sreq', windowSec: 60, max: 10 }),
   privateUpload.array('files', 5),
+  verifyUploadedFiles,
   (req, res, next) => {
     try {
       const result = services.createRequest(req.user, req.body, req.files || []);
@@ -87,6 +97,7 @@ router.post(
   '/service-requests/:code/files',
   requireAuth,
   privateUpload.array('files', 5),
+  verifyUploadedFiles,
   (req, res, next) => {
     try {
       res.status(201).json({ request: services.customerUploadFiles(req.user, req.params.code, req.files || []) });
@@ -158,6 +169,7 @@ router.post(
   '/staff/service-requests/:id/files',
   requireRole('operator', 'admin'),
   privateUpload.array('files', 5),
+  verifyUploadedFiles,
   (req, res, next) => {
     try {
       const result = services.uploadFiles(req.user, req.params.id, req.files || [], req.body);
