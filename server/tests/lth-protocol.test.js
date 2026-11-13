@@ -344,3 +344,82 @@ test('projection: every supply figure stays exact for the full 15,000,000 LTH', 
   assert.ok(res.data.market.share_of_supply_percent >= 0);
   assert.ok(res.data.market.share_of_supply_percent <= 100);
 });
+
+/**
+ * The 70/30 regulator is a protocol constant (migration 013).
+ *
+ * The split was previously an editable setting, so the lock has to hold on
+ * three separate planes — otherwise it is only a UI opinion:
+ *   1. the API refuses a different ratio with a readable Persian error,
+ *   2. re-sending the same pair (what the admin form does on every save) is a
+ *      harmless no-op, not an error,
+ *   3. a hand-written SQL UPDATE is rejected by the database itself.
+ */
+test('regulator: the 70/30 split is locked at the API, in the service, and in the database', async () => {
+  const admin = await loginAs('09120000001');
+  const finance = await loginAs('09120000005');
+
+  // The public config advertises the lock, so the UI can render it read-only.
+  const cfg = await api('/api/v1/lth/config');
+  assert.equal(cfg.status, 200);
+  assert.equal(cfg.data.config.stake_percent, 70);
+  assert.equal(cfg.data.config.withdrawable_percent, 30);
+  assert.equal(cfg.data.config.regulator_locked, true);
+  assert.ok(cfg.data.config.regulator_note);
+
+  // 1) A finance user was already blocked by RBAC; keep that guarantee.
+  assert.equal((await api('/api/v1/admin/lth/settings', {
+    method: 'PATCH', token: finance.token,
+    body: { stake_percent: 71, reason: 'تلاش غیرمجاز مالی' }
+  })).status, 403);
+
+  // …and an admin is blocked by the lock, with an actionable message.
+  for (const body of [
+    { stake_percent: 71 },
+    { withdrawable_percent: 29 },
+    { stake_percent: 50, withdrawable_percent: 50 },
+    { stake_percent: 0 },
+    { stake_percent: 100 }
+  ]) {
+    const res = await api('/api/v1/admin/lth/settings', {
+      method: 'PATCH', token: admin.token,
+      body: { ...body, reason: 'تلاش برای تغییر نسبت قفل‌شده' }
+    });
+    assert.equal(res.status, 400, `ratio ${JSON.stringify(body)} must be rejected`);
+    assert.match(res.data.error.message, /قفل/);
+  }
+
+  // Nothing moved.
+  const after = get('SELECT stake_bps, withdrawable_bps FROM lth_settings WHERE id = 1');
+  assert.equal(after.stake_bps, 7000);
+  assert.equal(after.withdrawable_bps, 3000);
+
+  // 2) Saving other settings while echoing the current pair still works.
+  const noop = await api('/api/v1/admin/lth/settings', {
+    method: 'PATCH', token: admin.token,
+    body: { stake_percent: 70, withdrawable_percent: 30, reason: 'ذخیرهٔ بدون تغییر نسبت' }
+  });
+  assert.equal(noop.status, 200);
+  assert.equal(noop.data.config.stake_percent, 70);
+
+  // 3) Below the service layer, the trigger rejects a hand-edited row.
+  assert.throws(
+    () => run('UPDATE lth_settings SET stake_bps = 6900, withdrawable_bps = 3100 WHERE id = 1'),
+    /locked/i
+  );
+  assert.throws(
+    () => run("INSERT INTO lth_settings (id, price_irr, reward_per_min_unit_atoms, stake_bps, withdrawable_bps, lockup_days, reward_interval_sec, packages_toman_json, updated_at) VALUES (2, '1', '1', 7000, 2900, 1, 86400, '[]', 'x')"),
+    /locked|constraint/i
+  );
+
+  // A down/up cycle restores the lock instead of leaving the table open.
+  const { rollback, migrate } = require('../src/db/migrate');
+  assert.deepEqual(rollback(1), ['013_lth_regulator_lock']);
+  migrate();
+  assert.throws(
+    () => run('UPDATE lth_settings SET stake_bps = 6900, withdrawable_bps = 3100 WHERE id = 1'),
+    /locked/i,
+    're-applying the migration must recreate the trigger'
+  );
+  assert.equal(get('SELECT stake_bps FROM lth_settings WHERE id = 1').stake_bps, 7000);
+});

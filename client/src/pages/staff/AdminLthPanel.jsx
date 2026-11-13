@@ -175,19 +175,8 @@ export function AdminLthPanel({ userRole = 'admin' }) {
     }
   };
 
-  // Coupled 100% Regulator
-  const handleStakeChange = (raw) => {
-    const num = Math.max(0, Math.min(100, Math.round(Number(raw || 0) * 100) / 100));
-    const comp = Math.round((100 - num) * 100) / 100;
-    setForm((f) => ({ ...f, stake_percent: num, withdrawable_percent: comp }));
-  };
-
-  const handleWithdrawableChange = (raw) => {
-    const num = Math.max(0, Math.min(100, Math.round(Number(raw || 0) * 100) / 100));
-    const comp = Math.round((100 - num) * 100) / 100;
-    setForm((f) => ({ ...f, withdrawable_percent: num, stake_percent: comp }));
-  };
-
+  // The 70/30 regulator is locked (migration 013 + LTH service guard), so the
+  // panel renders it read-only and there are no change handlers to keep.
   const handleSaveSettings = async (e) => {
     e.preventDefault();
     setBusy(true);
@@ -205,14 +194,14 @@ export function AdminLthPanel({ userRole = 'admin' }) {
         body: {
           price_irr: form.price_irr,
           reward_per_min_unit_lth: form.reward_per_min_unit_lth,
-          stake_percent: Number(form.stake_percent),
-          withdrawable_percent: Number(form.withdrawable_percent),
+          // Deliberately not sent: the 70/30 regulator is locked server-side
+          // (migration 013). Sending it would only re-assert the same pair.
           lockup_days: Number(form.lockup_days),
           packages_toman: packagesArr,
           reason: form.reason.trim()
         }
       });
-      setMsg(`تنظیمات موتور LTH و ریگلاژ (${form.stake_percent}٪ استیک / ${form.withdrawable_percent}٪ قابل برداشت) در سرور ذخیره و در ممیزی ثبت شد.`);
+      setMsg(`تنظیمات موتور LTH ذخیره و در ممیزی ثبت شد؛ نسبت ریگلاژ (${form.stake_percent}٪ / ${form.withdrawable_percent}٪) قفل است و تغییری نکرد.`);
       await loadAll();
     } catch (err) {
       setOpErr(err);
@@ -1209,7 +1198,7 @@ export function AdminLthPanel({ userRole = 'admin' }) {
                 )}
                 <form onSubmit={runProjection} className="grid grid-2" style={{ marginTop: 12 }}>
                   <div className="form-row" style={{ marginBottom: 0 }}>
-                    <label className="form-label">سهم استیک (٪) — پیش‌فرض ۷۰</label>
+                    <label className="form-label">سهم استیک برای تحلیل (٪) — فقط سناریو، تنظیمات را تغییر نمی‌دهد</label>
                     <input
                       className="input mono"
                       type="number"
@@ -1246,44 +1235,24 @@ export function AdminLthPanel({ userRole = 'admin' }) {
           <form onSubmit={handleSaveSettings} className="card">
             <h3 style={{ marginTop: 0, fontSize: '1.06rem' }}><Icon name="settings" size={17} /> ریگلاژ تناسب استیک / قابل برداشت و نرخ‌های موتور LTH</h3>
 
-            <div style={{ background: '#fdf2f8', border: '1px solid #fbcfe8', borderRadius: 12, padding: 14, marginBottom: 14 }}>
-              <div className="flex-between" style={{ marginBottom: 6 }}>
-                <strong>ریگلاژ حد تناسب از ۱۰۰٪ پاداش روزانه</strong>
-                <span className="badge badge-info">{form.stake_percent}٪ استیک + {form.withdrawable_percent}٪ آزاد = ۱۰۰٪</span>
+            <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 12, padding: 14, marginBottom: 14 }}>
+              <div className="flex-between" style={{ marginBottom: 8 }}>
+                <strong><Icon name="lock" size={15} /> تقسیم پاداش روزانه — قفل‌شده</strong>
+                <span className="badge badge-ok">{form.stake_percent}٪ استیک + {form.withdrawable_percent}٪ قابل برداشت = ۱۰۰٪</span>
               </div>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                step="1"
-                style={{ width: '100%', accentColor: '#ec1e79', marginBottom: 10 }}
-                value={form.stake_percent}
-                onChange={(e) => handleStakeChange(e.target.value)}
-              />
+              <p className="account-hint" style={{ marginTop: 0 }}>
+                این نسبت یک پارامتر پروتکل است و از این پس با هیچ تنظیمی تغییر نمی‌کند
+                (در سطح دیتابیس هم قفل شده). تغییر آن فقط با نسخهٔ جدید و مهاجرت دیتابیس
+                انجام می‌شود؛ اگر نیاز تجاری اشته‌اید، درخواست را برای تیم فنی ثبت کنید.
+              </p>
               <div className="grid grid-2">
                 <div className="form-row" style={{ marginBottom: 0 }}>
                   <label className="form-label">سهم استیک قفل‌شده (٪)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    className="input mono"
-                    value={form.stake_percent}
-                    onChange={(e) => handleStakeChange(e.target.value)}
-                  />
+                  <input className="input mono" dir="ltr" value={form.stake_percent} readOnly disabled />
                 </div>
                 <div className="form-row" style={{ marginBottom: 0 }}>
                   <label className="form-label">سهم پاداش قابل برداشت (٪)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    className="input mono"
-                    value={form.withdrawable_percent}
-                    onChange={(e) => handleWithdrawableChange(e.target.value)}
-                  />
+                  <input className="input mono" dir="ltr" value={form.withdrawable_percent} readOnly disabled />
                 </div>
               </div>
             </div>

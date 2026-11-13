@@ -20,6 +20,14 @@ function normalizeIranPhone(raw) {
   return /^09\d{9}$/.test(s) ? s : null;
 }
 
+// The stakeholder split is a protocol constant, not a setting.
+// Milestone figure: 70% of the daily reward is staked for the lock-up period,
+// 30% is withdrawable. Migration 013 mirrors this pair in the database
+// (`lth_regulator_lock` view + BEFORE INSERT/UPDATE triggers), so a direct SQL
+// edit is rejected too. Changing the split is a release, not an API call:
+// ship a migration that recreates the trigger with the new numbers.
+const LOCKED_STAKE_BPS = 7000;
+
 const SERVER_INSTANCE_ID = process.env.CM_INSTANCE_ID || `${os.hostname()}-pid${process.pid}-${crypto.randomBytes(3).toString('hex')}`;
 
 const DEFAULT_LTH_LOGO_SVG = `<?xml version="1.0" encoding="UTF-8"?>
@@ -381,6 +389,8 @@ function formatSettingsPayload(row) {
     withdrawable_bps: row.withdrawable_bps,
     stake_percent: row.stake_bps / 100,
     withdrawable_percent: row.withdrawable_bps / 100,
+    regulator_locked: true,
+    regulator_note: 'نسبت ۷۰٪ استیک / ۳۰٪ قابل برداشت قفل است و فقط با مهاجرت نسخهٔ جدید تغییر می‌کند.',
     lockup_days: row.lockup_days,
     reward_interval_sec: row.reward_interval_sec,
     packages_toman: packagesToman,
@@ -1759,38 +1769,34 @@ function updateSettings(adminUser, input) {
     }
   }
 
-  // Coupled 100% regulator ("ریگلاژ حد تناسب از ۱۰۰ درصد مثلا ۷۱ درصد به ۲۹ درصد")
+  // Locked regulator. The split is a protocol parameter of the product, not a
+  // knob: 70% of the daily reward is staked for the lock-up period and 30% is
+  // withdrawable. Migration 013 enforces the same values with a database
+  // trigger, so this branch exists to answer with a readable Persian error
+  // instead of a raw SQLite abort. Changing the split needs a new migration.
   let nextStakeBps = current.stake_bps;
   let nextWithdrawableBps = current.withdrawable_bps;
 
   const hasStakePct = input.stake_percent !== undefined && input.stake_percent !== null && input.stake_percent !== '';
   const hasWithdrawablePct = input.withdrawable_percent !== undefined && input.withdrawable_percent !== null && input.withdrawable_percent !== '';
 
-  if (hasStakePct && !hasWithdrawablePct) {
-    const s = Number(input.stake_percent);
-    if (!Number.isFinite(s) || s < 0 || s > 100) {
-      throw ApiError.validation('درصد استیک باید بین ۰ تا ۱۰۰ باشد.', [{ field: 'stake_percent', message: 'بین ۰ تا ۱۰۰ وارد کنید.' }]);
+  if (hasStakePct || hasWithdrawablePct) {
+    const requested = hasStakePct ? Number(input.stake_percent) : 100 - Number(input.withdrawable_percent);
+    const requestedBps = Number.isFinite(requested) ? Math.round(requested * 100) : NaN;
+    const alreadyLocked = requestedBps === current.stake_bps && 10000 - requestedBps === current.withdrawable_bps;
+    if (!alreadyLocked) {
+      throw ApiError.validation(
+        `نسبت ریگلاژ قفل شده است: ${LOCKED_STAKE_BPS / 100}٪ استیک / ${(10000 - LOCKED_STAKE_BPS) / 100}٪ قابل برداشت. ` +
+        'این نسبت یک پارامتر پروتکل است و فقط با مهاجرت نسخهٔ جدید تغییر می‌کند.',
+        [{ field: 'stake_percent', message: 'نسبت ۷۰/۳۰ قفل است.' }]
+      );
     }
-    nextStakeBps = Math.round(s * 100);
-    nextWithdrawableBps = 10000 - nextStakeBps;
-  } else if (!hasStakePct && hasWithdrawablePct) {
-    const w = Number(input.withdrawable_percent);
-    if (!Number.isFinite(w) || w < 0 || w > 100) {
-      throw ApiError.validation('درصد قابل برداشت باید بین ۰ تا ۱۰۰ باشد.', [{ field: 'withdrawable_percent', message: 'بین ۰ تا ۱۰۰ وارد کنید.' }]);
-    }
-    nextWithdrawableBps = Math.round(w * 100);
-    nextStakeBps = 10000 - nextWithdrawableBps;
-  } else if (hasStakePct && hasWithdrawablePct) {
-    const sBps = Math.round(Number(input.stake_percent) * 100);
-    const wBps = Math.round(Number(input.withdrawable_percent) * 100);
-    if (!Number.isFinite(sBps) || !Number.isFinite(wBps) || sBps < 0 || wBps < 0 || sBps + wBps !== 10000) {
-      throw ApiError.validation('جمع درصد استیک و درصد پاداش قابل برداشت باید دقیقاً ۱۰۰٪ باشد.', [
-        { field: 'stake_percent', message: 'مجموع دو نسبت باید ۱۰۰٪ باشد.' }
-      ]);
-    }
-    nextStakeBps = sBps;
-    nextWithdrawableBps = wBps;
+    // Same pair re-sent (the admin form always posts both fields) — a no-op,
+    // not an attempt to change the split.
+    nextStakeBps = LOCKED_STAKE_BPS;
+    nextWithdrawableBps = 10000 - LOCKED_STAKE_BPS;
   }
+
 
   let nextLockupDays = current.lockup_days;
   if (input.lockup_days !== undefined && input.lockup_days !== null && input.lockup_days !== '') {
@@ -2743,6 +2749,7 @@ module.exports = {
   reviewWithdrawal,
   createAccountTransfer,
   updateSettings,
+  LOCKED_STAKE_BPS,
   updateTreasurySettings,
   updateLogo,
   getClusterSchedulerStatus,

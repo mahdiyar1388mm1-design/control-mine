@@ -869,7 +869,8 @@ test('LTH (LOTH COIN) end-to-end: calculator, packages, 7 wallet titles, 24h mul
   assert.equal(finReview.status, 200);
   assert.equal(finReview.data.withdrawal.status, 'paid');
 
-  // 7) Admin coupled 100% Regulator (71% stake -> auto 29% withdrawable) + RBAC + Logo upload validation
+  // 7) Locked 70/30 regulator: RBAC still applies, and nobody — not even a
+  //    real admin — can move the split away from 70/30.
   assert.equal((await api('/api/v1/admin/lth/settings', {
     method: 'PATCH',
     token: fin.token,
@@ -879,18 +880,33 @@ test('LTH (LOTH COIN) end-to-end: calculator, packages, 7 wallet titles, 24h mul
   const regUpdate = await api('/api/v1/admin/lth/settings', {
     method: 'PATCH',
     token: admin.token,
-    body: { stake_percent: 71, reason: 'ریگلاژ تست ۷۱ به ۲۹ درصد' }
+    body: { stake_percent: 71, reason: 'تلاش برای تغییر نسبت قفل‌شده' }
   });
-  assert.equal(regUpdate.status, 200);
-  assert.equal(regUpdate.data.config.stake_percent, 71);
-  assert.equal(regUpdate.data.config.withdrawable_percent, 29);
+  assert.equal(regUpdate.status, 400);
+  assert.match(regUpdate.data.error.message, /قفل/);
+  assert.equal(regUpdate.data.error.details[0].message, 'نسبت ۷۰/۳۰ قفل است.');
 
-  // Restore 70/30 default after verifying regulator
-  await api('/api/v1/admin/lth/settings', {
+  // The snapshot still reads 70/30 after the rejected attempt.
+  const afterReject = await api('/api/v1/lth/config');
+  assert.equal(afterReject.data.config.stake_percent, 70);
+  assert.equal(afterReject.data.config.withdrawable_percent, 30);
+  assert.equal(afterReject.data.config.regulator_locked, true);
+
+  // Re-sending the same pair is a harmless no-op (the admin form posts both fields every time).
+  const samePair = await api('/api/v1/admin/lth/settings', {
     method: 'PATCH',
     token: admin.token,
-    body: { stake_percent: 70, reason: 'بازگشت به پیش‌فرض ۷۰ به ۳۰ درصد' }
+    body: { stake_percent: 70, withdrawable_percent: 30, lockup_days: 3285, reason: 'ذخیرهٔ فرم بدون تغییر نسبت' }
   });
+  assert.equal(samePair.status, 200);
+  assert.equal(samePair.data.config.stake_percent, 70);
+
+  // And the database refuses a hand-edited row, below the API entirely.
+  assert.throws(
+    () => run('UPDATE lth_settings SET stake_bps = 7100, withdrawable_bps = 2900 WHERE id = 1'),
+    /locked/i,
+    'the 013 trigger must reject a direct SQL edit of the ratio'
+  );
 
   // Malicious SVG upload blocked; valid PNG upload accepted
   const badForm = new FormData();
