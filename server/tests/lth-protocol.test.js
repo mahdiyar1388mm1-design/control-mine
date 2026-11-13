@@ -240,6 +240,22 @@ test('tax: a collected fee always produces a matching tax liability, then a sett
   assert.equal(BigInt(settled.data.tax.outstanding_atoms), outstanding - settleAtoms);
   assert.ok(get("SELECT 1 AS x FROM audit_log WHERE action = 'lth.tax.settle' LIMIT 1"));
 
+  // Settling the rest clears the liability; a further settlement is refused
+  // with 409 rather than silently recording a negative outstanding balance.
+  const restAtoms = BigInt(settled.data.tax.outstanding_atoms);
+  const cleared = await api('/api/v1/admin/lth/tax/settle', {
+    method: 'POST', token: admin.token,
+    body: { lth_amount: math.formatAtomsCompact(restAtoms), reference: 'TAX-1405-0002', reason: 'تسویهٔ کامل مانده دوره' }
+  });
+  assert.equal(cleared.status, 201, JSON.stringify(cleared.data));
+  assert.equal(BigInt(cleared.data.tax.outstanding_atoms), 0n);
+
+  const nothingLeft = await api('/api/v1/admin/lth/tax/settle', {
+    method: 'POST', token: admin.token,
+    body: { lth_amount: '1', reference: 'TAX-1405-0003', reason: 'تسویهٔ بدون مانده' }
+  });
+  assert.equal(nothingLeft.status, 409, 'no outstanding tax must be a 409 INVALID_STATE');
+
   // Customers can never touch the tax ledger.
   const denied = await api('/api/v1/admin/lth/tax/settle', {
     method: 'POST', token: customer2.token,
