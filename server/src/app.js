@@ -4,6 +4,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const config = require('./config');
+const { integrationStatus } = require('./modules/payments/providers');
 const { get } = require('./db');
 const { requestId } = require('./middleware/requestId');
 const { parseCookies, attachUser, csrfProtection } = require('./middleware/auth');
@@ -106,11 +107,7 @@ function createApp() {
       schema_version: migrations,
       uptime_seconds: Math.round(process.uptime()),
       timestamp: new Date().toISOString(),
-      integrations: {
-        payment_gateway: { mode: 'sandbox', real_connected: false },
-        sms_otp: { mode: 'sandbox', real_connected: false },
-        push_notifications: { mode: 'inactive', real_connected: false }
-      }
+      integrations: integrationStatus()
     });
   };
   app.get('/health', healthHandler);
@@ -148,11 +145,33 @@ function createApp() {
       checks,
       schema_version: version,
       integrations: {
-        payment_gateway: 'sandbox',
-        sms_otp: config.otpSandbox ? 'sandbox' : 'live'
+        payment_gateway: integrationStatus().payment_gateway.mode,
+        sms_otp: integrationStatus().sms_otp.mode
       },
       timestamp: new Date().toISOString()
     });
+  });
+
+  /**
+   * Read-only audit-chain verification for external monitoring.
+   *
+   * Same maintenance token as housekeeping: a monitor running on another box
+   * has no admin session, and verifying the chain must not require one. It
+   * exposes no data — only "the chain is intact, N entries, head hash".
+   */
+  app.get('/api/v1/maintenance/audit-chain', (req, res, next) => {
+    const token = req.header('x-maintenance-token');
+    if (!token || !process.env.CM_MAINTENANCE_TOKEN || token !== process.env.CM_MAINTENANCE_TOKEN) {
+      return next(ApiError.forbidden('دسترسی به عملیات نگهداری مجاز نیست.'));
+    }
+    try {
+      const { verifyAuditChain } = require('./modules/platform/service');
+      const result = verifyAuditChain();
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(result.ok ? 200 : 500).json(result);
+    } catch (err) {
+      return next(err);
+    }
   });
 
   // Housekeeping is an admin/maintenance operation, never public: protected by a token.

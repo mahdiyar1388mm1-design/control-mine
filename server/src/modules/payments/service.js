@@ -8,6 +8,7 @@ const { uuid, nowIso, validate, parsePagination, hashBody } = require('../../uti
 const { notify, audit } = require('../platform/service');
 const ordersService = require('../orders/service');
 const lthService = require('../lth/service');
+const providers = require('./providers');
 
 function signCallback(token, outcome) {
   return crypto.createHmac('sha256', config.secret).update(`${token}:${outcome}`).digest('hex');
@@ -134,6 +135,15 @@ function getPaymentFor(user, id) {
  * Sandbox gateway page — stands in for a real PSP until verified credentials exist.
  * Each button posts a signed callback (HMAC over token:outcome).
  */
+async function gatewayStart(payment) {
+  const provider = providers.paymentProvider();
+  return provider.start(payment, {
+    amountToman: payment.amount_toman,
+    description: `پرداخت ${payment.id.slice(0, 8)} — CENTRAL MINE`,
+    callbackUrl: `${config.publicBaseUrl || ''}/api/v1/payments/callback?ref=${encodeURIComponent(payment.id)}`
+  });
+}
+
 function gatewayHtml(payment) {
   const sign = (outcome) => signCallback(payment.callback_token, outcome);
   return `<!DOCTYPE html>
@@ -190,6 +200,83 @@ function gatewayHtml(payment) {
 /**
  * Idempotent callback: a replayed callback never double-fulfills an order/request.
  */
+/**
+ * Applies a settled outcome to the order / service request / LTH contract.
+ *
+ * This used to live inside sandboxCallback. It is the *business* half of a
+ * payment callback and must behave identically for every provider, so it is
+ * now a separate function that callers wrap in their own transaction.
+ * Returns { replay } so the caller can answer with the current state instead
+ * of fulfilling twice.
+ */
+function applyOutcomeInTx(payment, outcome, { gatewayRef = null, note = null } = {}) {
+  const payloadHash = hashBody({ payment: payment.id, outcome, gatewayRef });
+  let replay = false;
+  try {
+    run('INSERT INTO payment_events (id, payment_id, event, payload_hash, created_at) VALUES (?, ?, ?, ?, ?)',
+      [uuid(), payment.id, `callback:${outcome}`, payloadHash, nowIso()]);
+  } catch {
+    replay = true;
+  }
+  if (replay) return { replay, payment: get('SELECT * FROM payments WHERE id = ?', [payment.id]) };
+
+  const now = nowIso();
+  if (outcome === 'success') {
+    if (payment.status === 'pending') {
+      run("UPDATE payments SET status = 'paid', gateway_ref = ?, paid_at = ?, updated_at = ? WHERE id = ?",
+        [gatewayRef || `SBX-${Date.now()}`, now, now, payment.id]);
+      if (payment.order_id) {
+        const order = get('SELECT * FROM orders WHERE id = ?', [payment.order_id]);
+        if (order && order.status === 'pending_payment') {
+          run("UPDATE orders SET status = 'paid', updated_at = ? WHERE id = ?", [now, order.id]);
+          run('INSERT INTO order_status_history (id, order_id, from_status, to_status, actor_id, actor_role, reason, created_at) VALUES (?, ?, ?, ?, NULL, ?, ?, ?)',
+            [uuid(), order.id, 'pending_payment', 'paid', 'system', 'پرداخت موفق', now]);
+          notify(order.user_id, 'payment_success', 'پرداخت تأیید شد', `سفارش ${order.code} پرداخت شد.`, `/orders/${order.code}`);
+        }
+      }
+      if (payment.service_request_id) {
+        const reqRow = get('SELECT * FROM service_requests WHERE id = ?', [payment.service_request_id]);
+        if (reqRow && reqRow.status === 'submitted') {
+          run("UPDATE service_requests SET status = 'queued', updated_at = ? WHERE id = ?", [now, reqRow.id]);
+          run('INSERT INTO request_status_history (id, request_id, from_status, to_status, actor_id, actor_role, reason, created_at) VALUES (?, ?, ?, ?, NULL, ?, ?, ?)',
+            [uuid(), reqRow.id, 'submitted', 'queued', 'system', 'پرداخت موفق — ورود به صف', now]);
+          notify(reqRow.user_id, 'service_paid', 'پرداخت درخواست تأیید شد', `درخواست ${reqRow.code} وارد صف انجام شد.`, `/service-requests/${reqRow.code}`);
+        }
+      }
+      lthService.handlePaymentOutcomeInTx(payment.id, 'success', now);
+    }
+  } else if (outcome === 'fail') {
+    if (payment.status === 'pending') {
+      run("UPDATE payments SET status = 'failed', failure_reason = ?, updated_at = ? WHERE id = ?",
+        [note || 'user_abort', now, payment.id]);
+      lthService.handlePaymentOutcomeInTx(payment.id, 'fail', now);
+    }
+  } else if (outcome === 'expired') {
+    if (payment.status === 'pending') {
+      run("UPDATE payments SET status = 'expired', failure_reason = ?, updated_at = ? WHERE id = ?",
+        [note || 'expired_or_unknown', now, payment.id]);
+      // An expired payment releases any stock reservation held for the pending order.
+      if (payment.order_id) {
+        let holds = [];
+        try {
+          holds = all("SELECT * FROM stock_holds WHERE order_id = ? AND status = 'held'", [payment.order_id]);
+        } catch { holds = []; }
+        if (holds.length > 0) {
+          for (const h of holds) {
+            run('UPDATE skus SET stock = stock + ?, updated_at = ? WHERE id = ?', [h.quantity, now, h.sku_id]);
+            run('INSERT INTO stock_movements (id, sku_id, delta, reason, ref_type, ref_id, actor_id, created_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?)',
+              [crypto.randomUUID(), h.sku_id, h.quantity, 'hold_expired', 'order', payment.order_id, now]);
+            run("UPDATE stock_holds SET status = 'released' WHERE id = ?", [h.id]);
+          }
+        }
+      }
+      lthService.handlePaymentOutcomeInTx(payment.id, 'expired', now);
+    }
+  }
+  audit(null, 'system', 'payment.callback', 'payment', payment.id, { outcome, gateway_ref: gatewayRef });
+  return { replay: false, payment: get('SELECT * FROM payments WHERE id = ?', [payment.id]) };
+}
+
 function sandboxCallback(body) {
   const data = validate(body)
     .string('token', { min: 10, max: 200 })
@@ -202,78 +289,57 @@ function sandboxCallback(body) {
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
     throw ApiError.forbidden('امضای callback معتبر نیست.');
   }
-
   return tx(() => {
     const payment = get('SELECT * FROM payments WHERE callback_token = ?', [data.token]);
     if (!payment) throw ApiError.notFound('پرداخت یافت نشد.');
-
-    // Idempotency: record the event; if this exact event was already processed, return current state.
-    const payloadHash = hashBody(data);
-    let replay = false;
-    try {
-      run('INSERT INTO payment_events (id, payment_id, event, payload_hash, created_at) VALUES (?, ?, ?, ?, ?)',
-        [uuid(), payment.id, `callback:${data.outcome}`, payloadHash, nowIso()]);
-    } catch {
-      replay = true;
-    }
-
-    const now = nowIso();
-    if (!replay) {
-      if (data.outcome === 'success') {
-        if (payment.status === 'pending') {
-          run("UPDATE payments SET status = 'paid', gateway_ref = ?, paid_at = ?, updated_at = ? WHERE id = ?",
-            [`SBX-${Date.now()}`, now, now, payment.id]);
-          if (payment.order_id) {
-            const order = get('SELECT * FROM orders WHERE id = ?', [payment.order_id]);
-            if (order && order.status === 'pending_payment') {
-              run("UPDATE orders SET status = 'paid', updated_at = ? WHERE id = ?", [now, order.id]);
-              run('INSERT INTO order_status_history (id, order_id, from_status, to_status, actor_id, actor_role, reason, created_at) VALUES (?, ?, ?, ?, NULL, ?, ?, ?)',
-                [uuid(), order.id, 'pending_payment', 'paid', 'system', 'پرداخت موفق', now]);
-              notify(order.user_id, 'payment_success', 'پرداخت تأیید شد', `سفارش ${order.code} پرداخت شد.`, `/orders/${order.code}`);
-            }
-          }
-          if (payment.service_request_id) {
-            const reqRow = get('SELECT * FROM service_requests WHERE id = ?', [payment.service_request_id]);
-            if (reqRow && reqRow.status === 'submitted') {
-              run("UPDATE service_requests SET status = 'queued', updated_at = ? WHERE id = ?", [now, reqRow.id]);
-              run('INSERT INTO request_status_history (id, request_id, from_status, to_status, actor_id, actor_role, reason, created_at) VALUES (?, ?, ?, ?, NULL, ?, ?, ?)',
-                [uuid(), reqRow.id, 'submitted', 'queued', 'system', 'پرداخت موفق — ورود به صف', now]);
-              notify(reqRow.user_id, 'service_paid', 'پرداخت درخواست تأیید شد', `درخواست ${reqRow.code} وارد صف انجام شد.`, `/service-requests/${reqRow.code}`);
-            }
-          }
-          lthService.handlePaymentOutcomeInTx(payment.id, 'success', now);
-        }
-      } else if (data.outcome === 'fail') {
-        if (payment.status === 'pending') {
-          run("UPDATE payments SET status = 'failed', failure_reason = 'user_abort', updated_at = ? WHERE id = ?", [now, payment.id]);
-          lthService.handlePaymentOutcomeInTx(payment.id, 'fail', now);
-        }
-      } else if (data.outcome === 'expired') {
-        if (payment.status === 'pending') {
-          run("UPDATE payments SET status = 'expired', failure_reason = 'expired_or_unknown', updated_at = ? WHERE id = ?", [now, payment.id]);
-          // An expired payment releases any stock reservation held for the pending order.
-          if (payment.order_id) {
-            let holds = [];
-            try {
-              holds = all("SELECT * FROM stock_holds WHERE order_id = ? AND status = 'held'", [payment.order_id]);
-            } catch { holds = []; }
-            if (holds.length > 0) {
-              for (const h of holds) {
-                run('UPDATE skus SET stock = stock + ?, updated_at = ? WHERE id = ?', [h.quantity, now, h.sku_id]);
-                run('INSERT INTO stock_movements (id, sku_id, delta, reason, ref_type, ref_id, actor_id, created_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?)',
-                  [crypto.randomUUID(), h.sku_id, h.quantity, 'hold_expired', 'order', payment.order_id, now]);
-                run("UPDATE stock_holds SET status = 'released' WHERE id = ?", [h.id]);
-              }
-            }
-          }
-          lthService.handlePaymentOutcomeInTx(payment.id, 'expired', now);
-        }
-      }
-      audit(null, 'system', 'payment.callback', 'payment', payment.id, { outcome: data.outcome, replay: false });
-    }
-
-    const updated = get('SELECT * FROM payments WHERE id = ?', [payment.id]);
+    const { replay, payment: updated } = applyOutcomeInTx(payment, data.outcome);
     return { payment: paymentToJson(updated), replay };
+  });
+}
+
+/**
+ * Provider callback for a live gateway.
+ *
+ * The customer comes back from the PSP to `?Authority=…&Status=OK|NOK` (or the
+ * provider's equivalent). We call verify() server-side — never trusting the
+ * query string — then run the same fulfilment path as the sandbox.
+ *
+ * Verification is deliberately *outside* the DB transaction: it is a network
+ * call, and holding a write lock while waiting for a bank is how a shop melts.
+ */
+async function providerCallback(paymentRef, query) {
+  const provider = providers.paymentProvider();
+  const payment = get('SELECT * FROM payments WHERE id = ? OR callback_token = ?', [paymentRef, paymentRef]);
+  if (!payment) throw ApiError.notFound('پرداخت یافت نشد.');
+  if (payment.status === 'paid') {
+    // Already settled: idempotent answer, do not call the provider again.
+    return { payment: paymentToJson(payment), replay: true };
+  }
+  if (!provider.signatureOk(query)) {
+    throw ApiError.forbidden('امضای callback معتبر نیست.');
+  }
+  const result = await provider.verify(query, payment);
+
+  // Only a *verified success* is allowed to move money forward.
+  //
+  // A failure callback carries no cryptographic proof: anyone who knows or
+  // guesses a payment id could hit `?Status=NOK` and, if we honoured it, kill
+  // a stranger's pending payment — a free denial-of-service on the checkout.
+  // So a failed/unverifiable callback is recorded and reported, but the
+  // payment stays pending; it will expire on its own via housekeeping.
+  if (!result.ok) {
+    audit(null, 'system', 'payment.callback_unverified', 'payment', payment.id, {
+      provider: provider.key,
+      status: String(query.Status || query.status || '').toUpperCase() || null,
+      reason: result.raw && result.raw.reason ? String(result.raw.reason).slice(0, 60) : null
+    });
+    return { payment: paymentToJson(payment), replay: false, provider: provider.key, verified: false };
+  }
+
+  return tx(() => {
+    const fresh = get('SELECT * FROM payments WHERE id = ?', [payment.id]);
+    const { replay, payment: updated } = applyOutcomeInTx(fresh, 'success', { gatewayRef: result.ref });
+    return { payment: paymentToJson(updated), replay, provider: provider.key, verified: true };
   });
 }
 
@@ -320,4 +386,7 @@ function listPayments(user, query) {
   return { items: items.map(paymentToJson), page, limit, total };
 }
 
-module.exports = { createPayment, getPaymentFor, paymentToJson, gatewayHtml, sandboxCallback, refundPayment, listPayments, signCallback };
+module.exports = {
+  createPayment, getPaymentFor, paymentToJson, gatewayHtml, gatewayStart,
+  sandboxCallback, providerCallback, applyOutcomeInTx, refundPayment, listPayments, signCallback
+};

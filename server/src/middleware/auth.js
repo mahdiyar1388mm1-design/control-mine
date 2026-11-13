@@ -133,8 +133,12 @@ const CSRF_EXEMPT_PATHS = new Set([
 function csrfProtection(req, res, next) {
   const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
   if (safeMethods.includes(req.method)) return next();
-  // The bank/SMS gateway posts here without our cookies; it is signature-verified instead.
-  if (req.originalUrl && req.originalUrl.startsWith('/api/v1/payments/sandbox/callback')) return next();
+  // A payment gateway calls back without our cookies. Both callbacks are
+  // verified server-side (sandbox by HMAC signature, live providers by asking
+  // the provider's API), so CSRF does not apply to them.
+  const url = req.originalUrl || '';
+  if (url.startsWith('/api/v1/payments/sandbox/callback')) return next();
+  if (url.startsWith('/api/v1/payments/callback')) return next();
 
   const hasBearer = (req.header('authorization') || '').toLowerCase().startsWith('bearer ');
   if (hasBearer) return next();

@@ -42,6 +42,27 @@ router.get('/payments', requireRole('admin', 'finance'), (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/**
+ * Live provider callback (Zarinpal & friends) — public, because the customer's
+ * browser is the one that arrives here. Trust comes from verifying the payment
+ * against the provider's API, not from the caller.
+ */
+router.get('/payments/callback', rateLimit({ name: 'pay-provider-cb', windowSec: 60, max: 60 }), async (req, res, next) => {
+  try {
+    const ref = req.query.ref || req.query.payment_id;
+    if (!ref) {
+      res.redirect(303, '/pay/result?status=failed');
+      return;
+    }
+    const result = await payments.providerCallback(String(ref), req.query);
+    const status = result.payment.status;
+    res.redirect(303, `/pay/result?status=${status}&ref=${encodeURIComponent(result.payment.id)}`);
+  } catch (err) {
+    // Never leak a stack trace to a customer coming back from a bank.
+    res.redirect(303, '/pay/result?status=failed');
+  }
+});
+
 router.get('/payments/:id', requireAuth, (req, res, next) => {
   try {
     const row = payments.getPaymentFor(req.user, req.params.id);
@@ -49,13 +70,25 @@ router.get('/payments/:id', requireAuth, (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get('/payments/:id/gateway', requireAuth, (req, res, next) => {
+/**
+ * Entry point the customer is sent to after "pay".
+ *
+ * With a live provider configured this creates the provider session and
+ * redirects; otherwise it renders the built-in signed sandbox page. The
+ * decision lives in providers.paymentProvider(), never in the route.
+ */
+router.get('/payments/:id/gateway', requireAuth, async (req, res, next) => {
   try {
     const row = payments.getPaymentFor(req.user, req.params.id);
     if (row.status !== 'pending') {
       res.status(409).json({
         error: { code: 'INVALID_STATE', message: 'این پرداخت دیگر در انتظار نیست.', requestId: req.id }
       });
+      return;
+    }
+    const started = await payments.gatewayStart(row);
+    if (started.mode === 'redirect') {
+      res.redirect(303, started.url);
       return;
     }
     res.type('html').send(payments.gatewayHtml(row));

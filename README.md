@@ -4,6 +4,28 @@
 
 ---
 
+## تحویل و بهره‌برداری
+
+نصب روی سرور تولید، بدون هیچ مرحلهٔ دستی خارج از این مخزن:
+
+```bash
+npm run admin:create -- --phone 09123456789 --name "نام و نام خانوادگی"
+npm run mfa:provision -- --all-privileged --write
+npm run demo:purge -- --keep 09123456789 --write
+npm run backup          # پشتیبان رمزنگاری‌شده + تأیید بازگردانی
+npm run monitor -- --url https://example.com
+npm run preflight -- --url https://example.com
+```
+
+فایل‌های `deploy/` شامل systemd unit‌ها (سرویس، پشتیبان شبانه، پایش ۵ دقیقه‌ای،
+نگهداری ماهانه)، نمونهٔ Nginx با TLS و نمونهٔ محیط تولید است. راهنمای گام‌به‌گام:
+`docs/05-deployment-backup-rollback.md` §۱۱.
+
+درگاه پرداخت و پیامک به‌صورت آداپتور پیاده شده‌اند: با تنظیم
+`CM_PAYMENT_PROVIDER`/`CM_SMS_PROVIDER` و کلیدها، همان مسیرها بدون تغییر کد به
+سرویس واقعی وصل می‌شوند؛ تا آن زمان `/health` صادقانه `real_connected: false`
+گزارش می‌کند.
+
 ## ⚡ پاسخ سریع: «APIها کجا می‌نشینند؟»
 
 **یک پردازه، یک پورت.** این پروژه API جداگانه ندارد؛ همان `server/src/index.js` هم

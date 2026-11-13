@@ -106,9 +106,10 @@ router.post('/mfa/recovery-codes', requireAuth, rateLimit({ name: 'mfa-recovery'
   try { res.json(mfa.regenerateRecoveryCodes(req.user.id, req.body)); } catch (err) { next(err); }
 });
 
-router.post('/otp/request', rateLimit({ name: 'otp-request', windowSec: 300, max: 10 }), (req, res, next) => {
+router.post('/otp/request', rateLimit({ name: 'otp-request', windowSec: 300, max: 10 }), async (req, res, next) => {
   try {
-    res.json(authService.requestOtp(req.body, meta(req)));
+    // async: the SMS provider is a network call
+    res.json(await authService.requestOtp(req.body, meta(req)));
   } catch (err) { next(err); }
 });
 

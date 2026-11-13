@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const { all, get, run, tx } = require('../../db');
 const { ApiError } = require('../../utils/errors');
 const config = require('../../config');
+const providers = require('../payments/providers');
 const {
   hashPassword, verifyPassword, dummyVerify, assertPasswordStrength, policy, needsRehash
 } = require('../../utils/password');
@@ -243,7 +244,7 @@ function refresh(input, meta = {}) {
   return { user: publicUser(user), ...result, expiresAt: new Date(Date.now() + config.tokenTtlSec * 1000).toISOString() };
 }
 
-function requestOtp(input, meta = {}) {
+async function requestOtp(input, meta = {}) {
   const data = validate({ ...input, phone: normalizePhone(input && input.phone) }).phone('phone').done();
   const now = Date.now();
   const recent = get(
@@ -262,13 +263,43 @@ function requestOtp(input, meta = {}) {
     'INSERT INTO otp_codes (id, phone, code_hash, expires_at, attempts, consumed_at, created_at) VALUES (?, ?, ?, ?, 0, NULL, ?)',
     [uuid(), data.phone, hashOtp(code), new Date(now + config.otpTtlSec * 1000).toISOString(), new Date(now).toISOString()]
   );
-  audit(user ? null : null, 'anonymous', 'auth.otp_requested', 'phone', null, { phone: data.phone, ip: meta.ip || null });
-  // NOTE: no real SMS provider is connected in v1. Sandbox channel only.
-  const result = { ok: true, channel: 'sandbox', ttl_seconds: config.otpTtlSec };
-  if (config.otpSandbox && !config.isProd) {
+  // Deliver the code. A provider failure must not tell the caller whether the
+  // phone belongs to an account, so the response shape stays identical; the
+  // failure is audited and logged instead.
+  const channel = await deliverOtp(data.phone, code);
+  audit(null, 'anonymous', 'auth.otp_requested', 'phone', null, {
+    phone: data.phone,
+    ip: meta.ip || null,
+    channel: channel.mode,
+    delivered: channel.delivered
+  });
+  const result = { ok: true, channel: channel.mode, ttl_seconds: config.otpTtlSec };
+  // The code only ever comes back when nothing was actually sent (pure sandbox)
+  // and never in production. Tying this to the real delivery channel instead of
+  // a flag means a live SMS provider can never leak the code by misconfiguration.
+  if (channel.mode === 'sandbox' && config.otpSandbox && !config.isProd) {
     result.dev_code = code;
   }
   return result;
+}
+
+/**
+ * Sends a login code through the configured provider, or reports 'sandbox'
+ * when none is configured. Never throws: a dead SMS route should surface as a
+ * delivered:false in the audit trail, not as a 500 that hints the number
+ * exists.
+ */
+async function deliverOtp(phone, code) {
+  const provider = providers.smsProvider();
+  if (!provider) return { mode: 'sandbox', delivered: false };
+  try {
+    const out = await provider.send({ phone, code, template: process.env.CM_SMS_TEMPLATE_ID || null });
+    return { mode: out.provider || provider.key, delivered: Boolean(out.ok) };
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error(JSON.stringify({ level: 'error', message: 'otp delivery failed', provider: provider.key, error: String(err.message).slice(0, 200) }));
+    return { mode: provider.key, delivered: false };
+  }
 }
 
 function verifyOtp(input, meta = {}) {

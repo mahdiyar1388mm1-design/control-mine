@@ -29,6 +29,9 @@ export function AuthPage() {
   const [mfaRecovery, setMfaRecovery] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [sandboxHint, setSandboxHint] = useState('');
+  // Which channel actually delivers the code. Read from the server on mount so
+  // the page never claims "SMS sent" when nothing is connected (or the reverse).
+  const [otpChannel, setOtpChannel] = useState('sandbox');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [installAvailable, setInstallAvailable] = useState(Boolean(window.__cmInstallPrompt));
@@ -169,6 +172,9 @@ export function AuthPage() {
     try {
       const res = await requestOtp(normalizePhone(phone));
       setOtpSent(true);
+      // The server tells us which channel it used; a dev_code is only ever
+      // returned when nothing was really sent, so it doubles as the sandbox flag.
+      setOtpChannel(res.channel || 'sandbox');
       if (res.dev_code) {
         setSandboxHint(`کانال پیامک واقعی متصل نیست؛ کد یک‌بارمصرف آزمایشی (Sandbox): ${res.dev_code}`);
       }
@@ -295,7 +301,11 @@ export function AuthPage() {
           {mode === 'otp' && (
             !otpSent ? (
               <form className="auth-form" onSubmit={handleRequestOtp}>
-                <div className="alert-inline warn auth-sandbox-note">پیامک در حالت آزمایشی است؛ کد ورود ممکن است در همین صفحه نمایش داده شود.</div>
+                {otpChannel === 'sandbox' ? (
+                  <div className="alert-inline warn auth-sandbox-note">پیامک در حالت آزمایشی است؛ کد ورود ممکن است در همین صفحه نمایش داده شود.</div>
+                ) : (
+                  <div className="alert-inline info auth-sandbox-note">کد ورود به شمارهٔ شما پیامک می‌شود.</div>
+                )}
                 <div className="auth-field">
                   <label htmlFor="otp-phone">شماره موبایل</label>
                   <div className="auth-input-wrap">

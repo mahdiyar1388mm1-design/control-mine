@@ -56,7 +56,9 @@ function sameOriginGuard(req, res, next) {
   const unsafe = !['GET', 'HEAD', 'OPTIONS'].includes(req.method);
   if (!unsafe) return next();
   if (!req.originalUrl.startsWith('/api/')) return next();
+  // Payment callbacks arrive from the gateway's domain by design.
   if (req.originalUrl.startsWith('/api/v1/payments/sandbox/callback')) return next();
+  if (req.originalUrl.startsWith('/api/v1/payments/callback')) return next();
   const origin = req.header('origin');
   if (!origin) return next(); // same-origin form posts / server-side clients
   const host = req.header('x-forwarded-host') || req.header('host');

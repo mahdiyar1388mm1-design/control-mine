@@ -319,3 +319,110 @@ location /app/ {
       در غیر این صورت `npm run mfa:provision -- --all-privileged --write`
 - [ ] کدهای بازیابی هر حساب مدیر در جای امن (بیرون از سرور) ذخیره شده است
 - [ ] `server/.env` و `server/data` و `server/storage` مالک/مجوز درست (`600`/`700`)
+
+---
+
+## ۱۱. تحویل بهره‌برداری — از نصب تا اولین روز کاری
+
+این بخش دقیقاً همان کاری است که تا پیش از این فقط در گفتار بود و اکنون به فایل‌های
+`deploy/` و `scripts/` تبدیل شده است.
+
+### ۱۱.۱ نصب یک‌باره
+
+```bash
+# ۱) کاربر و مسیرها
+sudo useradd --system --home /opt/central-mine --shell /usr/sbin/nologin central
+sudo mkdir -p /opt/central-mine /var/lib/central-mine
+sudo chown -R central:central /opt/central-mine /var/lib/central-mine
+
+# ۲) کد و وابستگی‌ها (ساخت بیلد کلاینت بخشی از انتشار است)
+sudo -u central git clone <repo> /opt/central-mine
+cd /opt/central-mine && sudo -u central npm --prefix client ci && sudo -u central npm --prefix client run build
+sudo -u central npm --prefix server ci --omit=dev
+
+# ۳) پیکربندی (هیچ کلیدی داخل unit نوشته نمی‌شود)
+sudo install -d -m 0750 -o central /etc/central-mine
+sudo install -m 0600 -o central deploy/production.env.example /etc/central-mine/central-mine.env
+sudo -u central nano /etc/central-mine/central-mine.env    # CM_SECRET و CM_BACKUP_KEY را پر کنید
+
+# ۴) اولین مدیر واقعی + ۲FA
+sudo -u central node scripts/create-admin.js --phone 09… --name "…"
+sudo -u central node scripts/mfa-provision.js --phone 09… --write
+
+# ۵) سرویس‌ها
+sudo install -m 0644 deploy/central-mine.service /etc/systemd/system/
+sudo install -m 0644 deploy/central-mine-backup.{service,timer} /etc/systemd/system/
+sudo install -m 0644 deploy/central-mine-monitor.{service,timer} /etc/systemd/system/
+sudo install -m 0644 deploy/central-mine-retention.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now central-mine central-mine-backup.timer central-mine-monitor.timer central-mine-retention.timer
+
+# ۶) Nginx + TLS
+sudo install -m 0644 deploy/nginx.conf.example /etc/nginx/sites-available/central-mine
+sudo ln -sf /etc/nginx/sites-available/central-mine /etc/nginx/sites-enabled/
+# فایل snippets/central-mine-proxy.conf را از انتهای همان نمونه بسازید
+sudo certbot --nginx -d example.com
+sudo nginx -t && sudo systemctl reload nginx
+
+# ۷) بررسی نهایی — تا صفر «مانع» نرسیده، تحویل ندهید
+sudo -u central node scripts/preflight.js --url https://example.com
+```
+
+### ۱۱.۲ نقشهٔ زمان‌بندها
+
+| زمان‌بند | زمان | کار | نشانهٔ خرابی |
+|---|---|---|---|
+| `central-mine.service` | همیشه | سرویس API | `systemctl status central-mine` |
+| `central-mine-backup.timer` | هر شب ۰۳:۱۵ | پشتیبان رمزنگاری‌شده + تأیید بازیابی + چرخش ۱۴ نسخه | `systemctl --failed` |
+| `central-mine-monitor.timer` | هر ۵ دقیقه | ۵ بررسی سلامتی بیرونی، webhook اختیاری | کد خروج ۲ |
+| `central-mine-retention.timer` | ماهی یک‌بار | آرشیو زنجیرهٔ ممیزی + پاک‌سازی کهنه‌ها | کد خروج غیرصفر |
+
+همهٔ زمان‌بندها `WantedBy=timers.target` هستند؛ با `systemctl list-timers` ببینید
+دفعهٔ بعد کِی اجرا می‌شوند.
+
+### ۱۱.۳ ابزارهای بهره‌برداری
+
+| فرمان | کار |
+|---|---|
+| `node scripts/backup.js --verify --keep 14` | پشتیبان + تأیید بازگردانی، خروجی JSON برای لاگ |
+| `node scripts/monitor.js --url … --webhook …` | پایش بیرونی؛ خرابی = کد خروج ۲ |
+| `node scripts/retention.js --days 365 --write --prune` | آرشیو ممیزی (پیش از حذف، فایل بازخوانی می‌شود) |
+| `node scripts/create-admin.js --phone …` | ساخت مدیر واقعی؛ رمز به‌صورت تعاملی و بی‌نمایش |
+| `node scripts/purge-demo.js --keep <شماره> --write` | حذف/ناشناس‌سازی حساب‌های دمو |
+| `node scripts/mfa-provision.js --all-privileged --write` | ثبت ۲FA برای نقش‌های حساس |
+| `node scripts/preflight.js --url …` | ۱۷ بررسی پیش از تحویل |
+
+**نکتهٔ مهم دربارهٔ `purge-demo.js`:** حساب‌هایی که در زنجیرهٔ ممیزی ردیابی دارند حذف
+فیزیکی نمی‌شوند (زنجیره باید به «یک نفر» ارجاع بدهد)؛ به‌جای آن **ناشناس** می‌شوند:
+شماره به `anon-<uuid>`، نام به «حساب حذف‌شده»، رمز به مقدار غیرقابل‌ورود و وضعیت
+`suspended`. این کار عمدی است — سابقهٔ مالی و ممیزی نباید ناپدید شود.
+
+### ۱۱.۴ اتصال درگاه پرداخت و پیامک
+
+تا وقتی `CM_PAYMENT_PROVIDER` و `CM_SMS_PROVIDER` خالی باشند، سیستم صادقانه در حالت
+sandbox می‌ماند و `/health` مقدار `real_connected: false` می‌دهد. با پر کردن کلیدها،
+همان مسیرها به درگاه واقعی وصل می‌شوند — بدون تغییر کد:
+
+- **زرین‌پال:** `CM_PAYMENT_PROVIDER=zarinpal` و `CM_PAYMENT_MERCHANT_ID`. مبلغ به
+  **ریال** ارسال می‌شود (تومان × ۱۰). تأیید در سمت سرور با `verify` انجام می‌شود، پس
+  دستکاری query مرورگر بی‌اثر است.
+- **پیامک:** `CM_SMS_PROVIDER=kavenegar` یا `smsir` با `CM_SMS_API_KEY`.
+
+**اصل امنیتی که در آزمون پیدا و رفع شد:** یک callback با `Status=NOK` نباید پرداخت را
+«ناموفق» کند. هر کسی می‌تواند آن URL را صدا بزند و پرداخت دیگران را از بین ببرد
+(DoS رایگان روی تسویه). اکنون فقط **موفقیت تأییدشده** وضعیت را تغییر می‌دهد؛ نتیجهٔ
+ناموفق ثبت می‌شود ولی پرداخت `pending` می‌ماند و با انقضای خودش بسته می‌شود.
+
+### ۱۱.۵ چک‌لیست تحویل (همه باید ✔ باشند)
+
+- [ ] `preflight.js --url …` صفر «مانع» می‌دهد
+- [ ] `create-admin.js` اجرا شده و ورود مدیر تست شده است
+- [ ] `mfa-provision.js --all-privileged` همهٔ `admin`/`finance` را پوشش داده
+- [ ] کدهای بازیابی چاپ و بیرون از سرور بایگانی شده‌اند
+- [ ] `purge-demo.js` اجرا شده: هیچ حساب با رمز `Cm@Test1405!` باقی نمانده
+- [ ] `backup.js --verify` موفق، و `central-mine-backup.timer` فعال
+- [ ] `monitor.js` سبز، و `central-mine-monitor.timer` فعال (با webhook اگر ممکن است)
+- [ ] گواهی TLS معتبر و `CM_PUBLIC_BASE_URL` با `https://` تنظیم شده
+- [ ] `NODE_ENV=production`، `CM_SECRET` ۶۴+ نویسه، `CM_BACKUP_KEY` تنظیم‌شده
+- [ ] `CM_OTP_SANDBOX=0` — وگرنه کد ورود در پاسخ API برمی‌گردد
+- [ ] درگاه و پیامک واقعی وصل‌اند، یا آگاهانه پذیرفته شده که sandbox بمانند

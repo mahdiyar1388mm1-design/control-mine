@@ -1,0 +1,74 @@
+# ==========================================================================
+# CENTRAL MINE — systemd unit
+# ==========================================================================
+# نصب:
+#   sudo install -m 0644 deploy/central-mine.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now central-mine
+#   journalctl -u central-mine -f
+#
+# پیش‌نیاز: کاربر سرویس، مسیر کد و دیتابیس.
+#   sudo useradd --system --home /opt/central-mine --shell /usr/sbin/nologin central
+#   sudo mkdir -p /opt/central-mine /var/lib/central-mine
+#   sudo chown -R central:central /opt/central-mine /var/lib/central-mine
+# ==========================================================================
+
+[Unit]
+Description=CENTRAL MINE — فروشگاه و کیف پول LTH
+Documentation=file:///opt/central-mine/docs/05-deployment-backup-rollback.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=central
+Group=central
+WorkingDirectory=/opt/central-mine
+
+# همهٔ تنظیمات در یک فایل 0600 — هیچ کلیدی در unit یا محیط شل نوشته نمی‌شود.
+EnvironmentFile=/etc/central-mine/central-mine.env
+ExecStart=/usr/bin/node server/src/index.js
+
+# راه‌اندازی مجدد خودکار با backoff (کد خروج 1 = خطای پیکربندی، تلاش بی‌پایان بی‌فایده است)
+Restart=on-failure
+RestartSec=5s
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# خاموشی تمیز: SIGTERM می‌گیرد، درخواست‌های در جریان تمام می‌شوند.
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# --- سخت‌سازی ---
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+# فقط همین مسیرها نوشتنی‌اند (دیتابیس، WAL، پشتیبان، آپلود).
+ReadWritePaths=/var/lib/central-mine
+
+# --- منابع ---
+LimitNOFILE=65535
+# سقف حافظه: node با heap پیش‌فرض بیش از این نمی‌رود؛ اگر بیشتر شد، ری‌استارت بهتر از swap است.
+MemoryMax=1G
+
+# --- لاگ ---
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=central-mine
+
+[Install]
+WantedBy=multi-user.target

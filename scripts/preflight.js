@@ -229,6 +229,124 @@ function checkDemoData() {
   }
 }
 
+/**
+ * Is there somebody who can actually log in and administer the platform?
+ *
+ * A production database after `purge-demo.js` holds no admin until
+ * `create-admin.js` has run — deploying in that state produces a shop nobody
+ * can manage. This is a blocker in production and a reminder elsewhere.
+ */
+function checkRealAdmin() {
+  try {
+    process.env.CM_SECRET = process.env.CM_SECRET || crypto.randomBytes(48).toString('hex');
+    const { all } = require('../server/src/db');
+    const admins = all("SELECT phone FROM users WHERE role = 'admin' AND status = 'active'");
+    // Seeded admins start with a published password and do not count.
+    const real = admins.filter((a) => !String(a.phone).startsWith('0912000'));
+    const isProd = process.env.NODE_ENV === 'production';
+    if (real.length > 0) {
+      push(OK, 'مدیر واقعی', `${real.length} مدیر فعال با شمارهٔ غیرِ دمو وجود دارد.`);
+    } else if (admins.length > 0) {
+      push(
+        isProd ? BLOCKING : WARN,
+        'مدیر واقعی',
+        'تنها مدیرهای فعال، حساب‌های دمو با رمز عمومی هستند.',
+        'node scripts/create-admin.js --phone 09… --name "…"  و سپس  node scripts/purge-demo.js --keep <شماره> --write'
+      );
+    } else {
+      push(
+        isProd ? BLOCKING : WARN,
+        'مدیر واقعی',
+        'هیچ مدیر فعالی وجود ندارد؛ بعد از استقرار کسی نمی‌تواند وارد پنل شود.',
+        'node scripts/create-admin.js --phone 09… --name "…"'
+      );
+    }
+  } catch {
+    push(INFO, 'مدیر واقعی', 'قابل بررسی نبود (دیتابیس در دسترس نیست).');
+  }
+}
+
+/**
+ * Coverage of the two sensitive roles. An un-enrolled finance account is a
+ * real risk (it can move money), so in production it is blocking.
+ */
+function checkMfaCoverage() {
+  try {
+    process.env.CM_SECRET = process.env.CM_SECRET || crypto.randomBytes(48).toString('hex');
+    const { all } = require('../server/src/db');
+    const rows = all(
+      `SELECT u.role, u.phone, COALESCE(m.enabled, 0) AS enabled
+         FROM users u LEFT JOIN user_mfa m ON m.user_id = u.id
+        WHERE u.role IN ('admin','finance') AND u.status = 'active'`
+    );
+    if (rows.length === 0) {
+      push(INFO, 'پوشش ۲FA', 'حساب حساس فعالی برای بررسی وجود ندارد.');
+      return;
+    }
+    const missing = rows.filter((r) => !r.enabled);
+    const isProd = process.env.NODE_ENV === 'production';
+    if (missing.length === 0) {
+      push(OK, 'پوشش ۲FA', `همهٔ ${rows.length} حساب admin/finance ثبت شده‌اند.`);
+    } else {
+      push(
+        isProd ? BLOCKING : WARN,
+        'پوشش ۲FA',
+        `${missing.length} از ${rows.length} حساب حساس بدون ورود دومرحله‌ای: ${missing.map((r) => r.role).join(', ')}`,
+        'node scripts/mfa-provision.js --all-privileged --write'
+      );
+    }
+  } catch {
+    push(INFO, 'پوشش ۲FA', 'قابل بررسی نبود.');
+  }
+}
+
+/**
+ * Are the integrations real or still sandbox? Not blocking — a shop can go
+ * live on an offline/cash basis — but the operator must know before customers
+ * hit "pay" and nothing happens.
+ */
+function checkIntegrations() {
+  const pay = String(process.env.CM_PAYMENT_PROVIDER || '').toLowerCase();
+  const merchant = Boolean(process.env.CM_PAYMENT_MERCHANT_ID);
+  const sms = String(process.env.CM_SMS_PROVIDER || '').toLowerCase();
+  const smsKey = Boolean(process.env.CM_SMS_API_KEY);
+  const otpSandbox = process.env.CM_OTP_SANDBOX !== '0';
+  const isProd = process.env.NODE_ENV === 'production';
+
+  if (pay && pay !== 'sandbox' && merchant) push(OK, 'درگاه پرداخت', `درگاه واقعی فعال است (${pay}).`);
+  else push(isProd ? WARN : INFO, 'درگاه پرداخت', 'حالت sandbox: پرداخت واقعی انجام نمی‌شود.', 'CM_PAYMENT_PROVIDER=zarinpal و CM_PAYMENT_MERCHANT_ID را تنظیم کنید.');
+
+  if (sms && sms !== 'sandbox' && smsKey) push(OK, 'پیامک ورود', `سرویس پیامک واقعی فعال است (${sms}).`);
+  else push(isProd ? WARN : INFO, 'پیامک ورود', 'حالت sandbox: کد ورود پیامک نمی‌شود.', 'CM_SMS_PROVIDER و CM_SMS_API_KEY را تنظیم کنید.');
+
+  // This one IS blocking: in production the OTP sandbox hands the code to the
+  // caller, which is a full account takeover for any known phone number.
+  if (isProd && otpSandbox) {
+    push(BLOCKING, 'OTP در تولید', 'CM_OTP_SANDBOX روشن است: کد ورود در پاسخ API برگردانده می‌شود.', 'CM_OTP_SANDBOX=0 بگذارید.');
+  } else if (!otpSandbox) {
+    push(OK, 'OTP در تولید', 'کد ورود هرگز در پاسخ API برگردانده نمی‌شود.');
+  } else {
+    push(OK, 'OTP در تولید', 'محیط توسعه: کد در پاسخ برمی‌گردد (در تولید ممنوع).');
+  }
+}
+
+/** How old is the newest backup on this machine? */
+function checkBackupFreshness() {
+  try {
+    const dataDir = process.env.CM_DATA_DIR || path.join(ROOT, 'server', 'data');
+    const dbPath = process.env.CM_DB_PATH || path.join(dataDir, 'central-mine.db');
+    const marker = path.join(path.dirname(dbPath), 'backups', 'last-backup.json');
+    const info = JSON.parse(fs.readFileSync(marker, 'utf8'));
+    const hours = (Date.now() - new Date(info.at).getTime()) / 3600000;
+    const isProd = process.env.NODE_ENV === 'production';
+    if (hours <= 36) push(OK, 'تازگی پشتیبان', `آخرین پشتیبان ${hours.toFixed(1)} ساعت پیش (${info.file}).`);
+    else push(isProd ? BLOCKING : WARN, 'تازگی پشتیبان', `آخرین پشتیبان ${hours.toFixed(0)} ساعت پیش است.`, 'زمان‌بند پشتیبان را فعال کنید: deploy/central-mine-backup.timer');
+  } catch {
+    const isProd = process.env.NODE_ENV === 'production';
+    push(isProd ? WARN : INFO, 'تازگی پشتیبان', 'هیچ پشتیبانی ثبت نشده است.', 'node scripts/backup.js --verify و سپس زمان‌بند systemd را نصب کنید.');
+  }
+}
+
 async function checkLive(url) {
   if (!url) {
     push(INFO, 'بررسی سرور زنده', 'با --url https://example.com می‌توانید سلامت سرور را هم بسنجید.');
@@ -269,6 +387,10 @@ async function main() {
   checkDataPermissions();
   checkMigrations();
   checkDemoData();
+  checkRealAdmin();
+  checkMfaCoverage();
+  checkIntegrations();
+  checkBackupFreshness();
   await checkLive(liveUrl);
 
   const order = { [BLOCKING]: 0, [WARN]: 1, [INFO]: 2, [OK]: 3 };

@@ -132,6 +132,16 @@ function makeProductSvg(title, subtitle, accentHex, iconShape) {
 }
 
 function seed({ silent = false } = {}) {
+  // A production database that gets seeded is a production database with nine
+  // accounts whose password is published in the README. Refuse outright; the
+  // supported way to create the first real admin is scripts/create-admin.js.
+  if (config.isProd && process.env.CM_ALLOW_SEED !== '1') {
+    throw new Error(
+      'seed در محیط تولید اجرا نمی‌شود (حساب‌های دمو رمز عمومی دارند). ' +
+      'برای ساخت مدیر واقعی از `node scripts/create-admin.js` استفاده کنید. ' +
+      'اگر واقعاً برای آزمون تولید لازم است: CM_ALLOW_SEED=1'
+    );
+  }
   migrate(silent ? () => {} : (m) => console.log(m));
 
   const existingAdmin = get("SELECT id FROM users WHERE phone = '09120000001'");
