@@ -81,6 +81,8 @@ module.exports = {
   otpMaxAttempts: 5,
   otpResendCooldownSec: 60,
   clientDist: path.join(root, '..', 'client', 'dist'),
+  // Canonical origin for sitemap/canonical URLs (set CM_PUBLIC_BASE_URL in production).
+  publicBaseUrl: process.env.CM_PUBLIC_BASE_URL || '',
   // When true (dev/test), OTP codes are returned in API response instead of a real SMS channel.
   otpSandbox: process.env.CM_OTP_SANDBOX !== '0',
   maxUploadBytes: num(process.env.CM_MAX_UPLOAD_BYTES, 10 * 1024 * 1024),

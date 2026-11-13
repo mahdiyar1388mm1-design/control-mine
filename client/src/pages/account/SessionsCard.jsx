@@ -3,6 +3,7 @@ import { apiFetch } from '../../lib/api';
 import { formatDateTime } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
 import { FieldErrorsList } from '../../components/StateViews';
+import { Icon } from '../../components/Icon';
 
 /** Short, human-readable device label from a user-agent string. */
 function deviceLabel(ua) {
@@ -83,10 +84,10 @@ export function SessionsCard() {
         </button>
       </div>
 
-      {msg && <div className="alert-inline ok" role="status" style={{ marginTop: 10 }}>✓ {msg}</div>}
+      {msg && <div className="alert-inline ok" role="status" style={{ marginTop: 10 }}><Icon name="check" size={14} /> {msg}</div>}
       {err && (
         <>
-          <div className="alert-inline error" role="alert" style={{ marginTop: 10 }}>⚠️ {err.message}</div>
+          <div className="alert-inline error" role="alert" style={{ marginTop: 10 }}><Icon name="alert" size={14} /> {err.message}</div>
           <FieldErrorsList details={err.details} />
         </>
       )}

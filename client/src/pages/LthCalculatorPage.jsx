@@ -4,6 +4,7 @@ import { apiFetch, newIdempotencyKey } from '../lib/api';
 import { addCommas, computeLocalMetrics, normalizeNumericInput } from '../lib/lthMath';
 import { useAuth } from '../context/AuthContext';
 import { ErrorState, FieldErrorsList, LoadingState } from '../components/StateViews';
+import { Icon } from '../components/Icon';
 
 export function LthCalculatorPage() {
   const { user } = useAuth();
@@ -140,7 +141,7 @@ export function LthCalculatorPage() {
             to="/wallet"
             style={{ color: '#fff', fontWeight: 800, fontSize: '0.9rem', display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}
           >
-            <span>☰</span>
+            <span><Icon name="grid" size={18} /></span>
             <span>کیف پول LTH</span>
           </Link>
           <div className="lth-calc-brand">ماین</div>
@@ -221,7 +222,7 @@ export function LthCalculatorPage() {
 
           {buyErr && (
             <>
-              <div className="alert-inline error">⚠️ {buyErr.message}</div>
+              <div className="alert-inline error"><Icon name="alert" size={14} /> {buyErr.message}</div>
               <FieldErrorsList details={buyErr.details} />
             </>
           )}
@@ -316,7 +317,7 @@ export function LthCalculatorPage() {
       <section className="card" style={{ background: '#f0fdf4', borderColor: '#86efac' }}>
         <div className="flex-between" style={{ marginBottom: 8 }}>
           <h3 style={{ margin: 0, fontSize: '1rem', color: '#166534' }}>
-            ✓ نشان سلامت محاسباتی و همخوانی با دفتر حسابداری (مرجع ۱.۰۰ LTH در ۲۴ ساعت)
+            <Icon name="check" size={14} /> نشان سلامت محاسباتی و همخوانی با دفتر حسابداری (مرجع ۱.۰۰ LTH در ۲۴ ساعت)
           </h3>
           <span className="badge badge-ok">دقت عدد صحیح BigInt</span>
         </div>

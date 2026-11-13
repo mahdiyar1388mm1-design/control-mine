@@ -143,3 +143,85 @@
 
 **در پاسخ‌های کاتالوگ:** هر محصول در `GET /products` فیلد `brand_logo_path` دارد و در
 `GET /products/:slug` شیء `brand` شامل `id`, `name`, `slug`, `logo_path`, `website_url` است.
+
+---
+
+## ۱۰) حسابداری پروتکل LTH: میزان پایه، کارمزد و مالیات (مهاجرت ۰۱۲)
+
+همهٔ مبالغ با `BigInt` و یکای `atom` (۱ LTH = ۱۰^۱۶ atom) محاسبه می‌شوند؛ هیچ‌جای این بخش از
+اعشار شناور استفاده نمی‌شود. تغییرات در مهاجرت `012_lth_protocol_tax_and_base_flow` اعمال شده است.
+
+### انواع رویداد دفتر خزانه (`lth_treasury_ledger.event_type`)
+
+| نوع | معنا | زمان ثبت | مرجع (`ref_type`) |
+|---|---|---|---|
+| `issue_base` | خروج پایه از خزانه به کیف پول | لحظهٔ تکمیل خرید، **فقط پس از تأیید پرداخت** | `lth_purchase` |
+| `return_base` | بازگشت پایهٔ فروش‌رفته به خزانه | تسویهٔ فروش LTH | `lth_sell` |
+| `return_stake` | بازگشت استیک | آزادسازی/فروش | — |
+| `return_reward` | بازگشت پاداش | — | — |
+| `collect_fee` | وصول کارمزد | هر انتقال حساب‌به‌حساب یا فروش | `lth_transfer` / `lth_sell` |
+| `tax_accrued` | تعلق مالیات روی همان کارمزد | **بلافاصله همراه `collect_fee`** | همان مرجع کارمزد |
+| `tax_settled` | تسویهٔ مالیات با خزانه | `POST /admin/lth/tax/settle` | شمارهٔ مرجع پرداخت |
+
+قاعدهٔ ثابت: هیچ توکنی بدون رویداد پرداخت جابه‌جا نمی‌شود؛ `issue_base` فقط داخل همان
+تراکنش تکمیل خرید (`fulfilled`) نوشته می‌شود و کلید یکتای آن (`bf-issue-<purchaseId>`)
+از واریز مضاعف جلوگیری می‌کند.
+
+### اندپوینت‌های جدید
+
+| Method | مسیر | نقش | بدنه / پارامتر |
+|---|---|---|---|
+| GET | `/api/v1/admin/lth/projection` | `admin`, `finance` | `?stake_percent=70&target_reward_lth=1` (هر دو اختیاری) |
+| POST | `/api/v1/admin/lth/tax/settle` | `admin`, `finance` | `{ lth_amount, reference, reason }` |
+| PATCH | `/api/v1/admin/lth/tax` | `admin` | `{ tax_percent }` یا `{ tax_bps }` + `reason` |
+
+**`target_reward_lth` نامعتبر → `400 VALIDATION_ERROR`**، تسویهٔ بیشتر از مانده →
+`409 INVALID_STATE`، نقش ناکافی → `403 FORBIDDEN`. هر سه عملیات در ممیزی
+(`lth.tax.settle` / `lth.tax.rate_update`) ثبت می‌شوند.
+
+### ردیف‌های خزانه در `GET /admin/lth/reconciliation`
+
+پاسخ `treasury.rows[]` به همین ترتیب، هر ردیف با `atoms`, `display_12`, `exact`,
+`irr_equivalent` و `description`:
+
+`asset` · `market` · `base_flow` · `returned_stake` · `returned_base` · `returned_reward` ·
+`collected_fee` · `tax_accrued` · `tax_settled` · `tax_outstanding` · `net_fee`
+
+- `base_flow` = `issue_base − return_base` و باید با پایهٔ موجود در کیف پول‌ها بسازد؛
+  کیف پول‌های قدیمی/نمونه‌ای که پیش از فعال‌شدن ردیابی صدور، پایه داشته‌اند به‌صورت
+  `opening_atoms` گزارش می‌شوند، نه با دست‌کاری عدد صدور:
+  `base_flow + opening = wallet_base` (`reconciles_with_opening: true`).
+- `tax_outstanding` = `tax_accrued − tax_settled`؛ هرگز منفی نمی‌شود و تسویهٔ بیش از
+  مانده رد می‌شود.
+- تراز کلی پروتکل همچنان `asset + market = total_supply` است (`conservation_ok`).
+
+### محاسبات (بدون اعشار شناور)
+
+```
+reward_atoms   = (market_atoms × reward_per_min_unit_atoms) ÷ 10^8
+staked         = (total × stake_bps) ÷ 10000      ⇒  withdrawable = total − staked   (همیشه ۷۰/۳۰)
+tax_atoms      = (fee_atoms × tax_bps) ÷ 10000
+required_market = (target_reward_atoms × 10^8) ÷ reward_per_min_unit_atoms
+```
+
+مثال متقارن: عرضهٔ کامل ۱۵٬۰۰۰٬۰۰۰ LTH با نرخ پیش‌فرض ⇒ **۵۱٬۰۰۰ LTH در ۲۴ ساعت** و
+معکوس آن دقیقاً `15,000,000` را برمی‌گرداند.
+
+---
+
+## ۱۱) SEO (robots، sitemap، متادیتای مسیرها)
+
+| Method | مسیر | توضیح |
+|---|---|---|
+| GET | `/robots.txt` | فایل استاتیک؛ مسیرهای عمومی `Allow` و نواحی خصوصی (`/staff`, `/account`, `/cart`, `/pay/`, `/orders`, `/tickets`, `/auth`, `/api/`, `/uploads/`) `Disallow` |
+| GET | `/sitemap.xml` | تولید سمت سرور: مسیرهای عمومی + همهٔ محصولات `status='active'` + برندهای فعال؛ کش ۱۰ دقیقه‌ای به تفکیک origin |
+
+- Origin مطلق از `CM_PUBLIC_BASE_URL` خوانده می‌شود (در نبود آن از هدرهای پراکسی)؛
+  هرگز هاست درخواست به‌تنهایی مبنای URL کانونیکال نیست.
+- محصولات آرشیو/پیش‌نویس و مسیرهای خصوصی هرگز در sitemap نمی‌آیند.
+- در سمت کلاینت `client/src/lib/seo.js` جدول مسیرها را نگه می‌دارد و
+  `components/Seo.jsx` با هر ناوبری، `title`، `description`، `canonical`،
+  `og:*`، `twitter:*` و JSON-LD را به‌روزرسانی می‌کند. صفحات خصوصی با
+  `noindex, nofollow` علامت می‌خورند.
+- صفحهٔ محصول JSON-LD نوع `Product` (+`Offer` با قیمت ریالی و موجودی) و
+  `BreadcrumbList` تولید می‌کند؛ قیمت از `price_toman` به `price_irr` تبدیل می‌شود.

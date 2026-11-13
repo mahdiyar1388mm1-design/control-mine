@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Icon } from './Icon';
 import { Link } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { formatDotGrouped } from '../lib/lthMath';
@@ -51,7 +52,7 @@ export function LthTopBar({ config: propConfig }) {
         <div className="lth-ticker-price">IRR {priceDisplay}</div>
         <div className="lth-ticker-pos">
           <span>POS</span>
-          <span className="lth-ticker-cta">محاسبه‌گر و پکیج ←</span>
+          <span className="lth-ticker-cta">محاسبه‌گر و پکیج <Icon name="arrowLeft" size={13} /></span>
         </div>
       </div>
     </Link>

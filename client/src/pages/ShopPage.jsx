@@ -4,6 +4,8 @@ import { apiFetch } from '../lib/api';
 import { formatMoney, formatNumber } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
 import { EmptyState, ErrorState, FieldErrorsList, LoadingState, ProductImage } from '../components/StateViews';
+import { Icon } from '../components/Icon';
+import { useSeo, productJsonLdFor, breadcrumbJsonLdFor } from '../lib/useSeo';
 
 export function ShopPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -206,7 +208,7 @@ export function ShopPage() {
                         : formatMoney(p.min_price_toman)}
                     </span>
                     <span className={`badge ${p.total_stock > 0 ? 'badge-ok' : 'badge-danger'}`}>
-                      {p.total_stock > 0 ? `✓ موجود (${formatNumber(p.total_stock)})` : '✕ ناموجود'}
+                      {p.total_stock > 0 ? <><Icon name="check" size={13} /> موجود ({formatNumber(p.total_stock)})</> : <><Icon name="close" size={13} /> ناموجود</>}
                     </span>
                   </div>
                 </div>
@@ -273,11 +275,31 @@ export function ProductDetailPage() {
     loadProduct();
   }, [loadProduct]);
 
+  // Product pages carry their own title/description/structured data. This hook
+  // must run before any early return so hook order stays stable.
+  useSeo(
+    product
+      ? {
+          title: `${product.name}${product.brand?.name ? ` | ${product.brand.name}` : ''} — سنترال ماین`,
+          description: (product.description || '').replace(/\s+/g, ' ').trim().slice(0, 300)
+            || `خرید ${product.name} با موجودی واقعی انبار و ضمانت اصالت از سنترال ماین.`,
+          image: product.image_path ? `${window.location.origin}${product.image_path}` : undefined,
+          jsonLd: [productJsonLdFor(product), breadcrumbJsonLdFor([
+            { name: 'خانه', path: '/' },
+            { name: 'فروشگاه', path: '/shop' },
+            { name: product.name, path: `/products/${product.slug || product.id}` }
+          ])]
+        }
+      : null,
+    [product]
+  );
+
   if (loading) return <LoadingState label="در حال بارگذاری مشخصات کالا..." />;
   if (error) return <ErrorState error={error} onRetry={loadProduct} />;
   if (!product) return <EmptyState title="کالا یافت نشد" actionLabel="بازگشت به فروشگاه" actionTo="/shop" />;
 
   const selectedSku = (product.skus || []).find((s) => s.id === selectedSkuId);
+
   const canPurchase = product.status === 'active' && selectedSku && selectedSku.is_active && selectedSku.stock > 0;
 
   const handleAddToCart = async (e) => {
@@ -307,12 +329,12 @@ export function ProductDetailPage() {
   return (
     <div>
       <div style={{ marginBottom: 12 }}>
-        <Link to="/shop" className="muted">← بازگشت به فهرست کالاها</Link>
+        <Link to="/shop" className="muted"><Icon name="arrowLeft" size={14} /> بازگشت به فهرست کالاها</Link>
       </div>
 
       {product.status !== 'active' && (
         <div className="alert-inline warn">
-          ⚠️ این کالا در وضعیت «{product.status}» قرار دارد و در حال حاضر قابل خرید نیست.
+          <Icon name="alert" size={14} /> این کالا در وضعیت «{product.status}» قرار دارد و در حال حاضر قابل خرید نیست.
         </div>
       )}
 
@@ -389,8 +411,8 @@ export function ProductDetailPage() {
                           <span>کد کالا: <span className="mono">{s.code}</span></span>
                           <span>
                             {!s.is_active
-                              ? '⛔ غیرفعال'
-                              : (s.stock > 0 ? `✓ موجودی انبار: ${formatNumber(s.stock)} عدد` : '✕ ناموجود')}
+                              ? <><Icon name="forbidden" size={13} /> غیرفعال</>
+                              : (s.stock > 0 ? <><Icon name="check" size={13} /> موجودی انبار: {formatNumber(s.stock)} عدد</> : <><Icon name="close" size={13} /> ناموجود</>)}
                           </span>
                         </div>
                       </label>
@@ -431,14 +453,14 @@ export function ProductDetailPage() {
 
               {addError && (
                 <>
-                  <div className="alert-inline error">⚠️ {addError.message}</div>
+                  <div className="alert-inline error"><Icon name="alert" size={14} /> {addError.message}</div>
                   <FieldErrorsList details={addError.details} />
                 </>
               )}
               {addFeedback && (
                 <div className="alert-inline ok" role="status">
-                  ✓ {addFeedback}{' '}
-                  <Link to="/cart" style={{ fontWeight: 800, marginRight: 8 }}>مشاهدهٔ سبد خرید ←</Link>
+                  <Icon name="check" size={14} /> {addFeedback}{' '}
+                  <Link to="/cart" style={{ fontWeight: 800, marginRight: 8 }}>مشاهدهٔ سبد خرید <Icon name="arrowLeft" size={14} /></Link>
                 </div>
               )}
 

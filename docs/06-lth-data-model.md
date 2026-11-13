@@ -22,6 +22,34 @@
 - **lth_treasury_ledger**: حرکت‌های خزانه (return_base، return_stake، return_reward، collect_fee).
 - **distributed_scheduler_leases**: قفل توزیع‌شده برای job پاداش بین چند سرور.
 
+### مهاجرت ۰۱۲ — حسابداری پایه و مالیات (`012_lth_protocol_tax_and_base_flow`)
+
+- `lth_treasury_ledger` بازسازی شد (copy → drop → rename) تا `CHECK(event_type)` انواع
+  جدید را بپذیرد: `issue_base`, `return_base`, `return_stake`, `return_reward`,
+  `collect_fee`, `tax_accrued`, `tax_settled`. برای هر نوع رویداد جدید در آینده هم
+  همین الگوی بازسازی لازم است؛ ALTER روی CHECK در SQLite کار نمی‌کند.
+- ایندکس‌های جدید: `idx_lth_treasury_ledger_type (event_type, created_at)` و
+  `idx_lth_treasury_ledger_ref (ref_type, ref_id)`.
+- Backfill ایذمپوتنت: برای هر `lth_purchase_orders` با وضعیت `fulfilled` که رویداد
+  `issue_base` ندارد، یک ردیف با `id = 'bf-issue-' || p.id` و
+  `ref_type='lth_purchase'` درج می‌شود (`NOT EXISTS` مانع تکرار است). اجرای دوبارهٔ
+  مهاجرت هیچ ردیف تکراری نمی‌سازد.
+- تنظیمات جدید در `settings`: `lth_protocol_tax_bps` (پیش‌فرض `1000` = ۱۰٪)،
+  `lth_protocol_tax_label` (برچسب فارسی مالیات) و `lth_base_row_label`
+  («میزان پایه») تا برچسب ردیف خزانه بدون تغییر کد قابل تنظیم باشد.
+- `013` به بعد ندارد؛ `012.down.sql` جدول را به شکل قبلی برمی‌گرداند و تنظیمات را پاک می‌کند.
+
+### قواعد نگهداری LTH پس از ۰۱۲
+- **۷۰/۳۰ همیشگی:** `stake_bps` = ۷۰۰۰ و `withdrawable_bps` = ۳۰۰۰ در هر ردیف پاداش؛
+  مجموع همیشه ۱۰۰۰۰ و `withdrawable = total − staked` محاسبه می‌شود، نه گرد کردن مستقل.
+- **پایه:** `base_flow = Σissue_base − Σreturn_base` و باید با `Σ wallets.base_atoms`
+  بخواند؛ اختلاف به‌صورت `opening_atoms` گزارش می‌شود
+  (`base_flow + opening = wallet_base`).
+- **مالیات:** هر `collect_fee` بلافاصله یک `tax_accrued` هم‌اندازه می‌سازد؛
+  `tax_settled` فقط با پرداخت واقعی (`POST /admin/lth/tax/settle`).
+- **بازگشت‌ها:** `return_stake` و `return_reward` و `return_base` هر کدام ردیف خودشان
+  را دارند و با ردیف «کارمزد» جمع نمی‌شوند.
+
 ## تغییرات روی payments و user_addresses
 - `payments.lth_purchase_id` (مایگریشن 002): پرداخت خرید LTH را به `lth_purchase_orders` وصل می‌کند.
 - `user_addresses.recipient_email` (مایگریشن 004): ایمیل گیرنده اختیاری.

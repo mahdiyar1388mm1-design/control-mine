@@ -119,8 +119,8 @@ export function TwoFactorCard() {
         )}
       </header>
 
-      {error && <div className="alert-inline error" role="alert">⚠️ {error}</div>}
-      {notice && <div className="alert-inline success" role="status">✅ {notice}</div>}
+      {error && <div className="alert-inline error" role="alert"><Icon name="alert" size={14} /> {error}</div>}
+      {notice && <div className="alert-inline success" role="status"><Icon name="checkCircle" size={14} /> {notice}</div>}
 
       {state && !state.enabled && !setup && (
         <>

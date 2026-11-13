@@ -4,6 +4,7 @@ import { apiFetch, newIdempotencyKey } from '../lib/api';
 import { formatDateTime, formatMoney, formatNumber, ROLE_LABELS } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
 import { ConfirmDialog, EmptyState, ErrorState, LoadingState, StatusBadge } from '../components/StateViews';
+import { Icon } from '../components/Icon';
 
 export function OrdersListPage() {
   const { user, authLoading } = useAuth();
@@ -208,11 +209,11 @@ export function OrderDetailPage() {
   return (
     <div>
       <div className="no-print" style={{ marginBottom: 12 }}>
-        <Link to="/orders" className="muted">← بازگشت به فهرست سفارش‌ها</Link>
+        <Link to="/orders" className="muted"><Icon name="arrowLeft" size={14} /> بازگشت به فهرست سفارش‌ها</Link>
       </div>
 
-      {actionMsg && <div className="alert-inline ok" role="status">✓ {actionMsg}</div>}
-      {actionErr && <div className="alert-inline error" role="alert">⚠️ {actionErr.message}</div>}
+      {actionMsg && <div className="alert-inline ok" role="status"><Icon name="check" size={14} /> {actionMsg}</div>}
+      {actionErr && <div className="alert-inline error" role="alert"><Icon name="alert" size={14} /> {actionErr.message}</div>}
 
       <div className="card">
         <div className="flex-between">
@@ -229,7 +230,7 @@ export function OrderDetailPage() {
 
         {order.tracking_code && (
           <div className="alert-inline info" style={{ marginTop: 14, marginBottom: 0 }}>
-            🚚 کد رهگیری مرسوله: <strong className="mono">{order.tracking_code}</strong>
+            <Icon name="truck2" size={15} /> کد رهگیری مرسوله: <strong className="mono">{order.tracking_code}</strong>
           </div>
         )}
         {order.cancel_reason && (
@@ -246,11 +247,11 @@ export function OrderDetailPage() {
           )}
           {order.status === 'shipped' && (
             <button type="button" className="btn btn-ok" disabled={busy} onClick={handleConfirmDelivery}>
-              ✓ تأیید تحویل گرفتن مرسوله
+              <Icon name="check" size={14} /> تأیید تحویل گرفتن مرسوله
             </button>
           )}
           <button type="button" className="btn btn-secondary" disabled={busy} onClick={toggleServerReceipt}>
-            {showReceipt ? 'بستن رسید رسمی سرور' : '🧾 مشاهده / چاپ رسید رسمی سرور'}
+            {showReceipt ? 'بستن رسید رسمی سرور' : <><Icon name="receipt2" size={14} /> مشاهده / چاپ رسید رسمی سرور</>}
           </button>
           {canCancel && (
             <button type="button" className="btn btn-danger" disabled={busy} onClick={() => setCancelOpen(true)}>
@@ -265,7 +266,7 @@ export function OrderDetailPage() {
           <div className="flex-between" style={{ marginBottom: 12 }}>
             <h2 style={{ margin: 0, fontSize: '1.12rem' }}>رسید رسمی سفارش (تولیدشده از دادهٔ سرور)</h2>
             <button type="button" className="btn btn-secondary btn-sm no-print" onClick={() => window.print()}>
-              🖨️ چاپ رسید
+              <Icon name="printer" size={14} /> چاپ رسید
             </button>
           </div>
           <div className="grid grid-2" style={{ fontSize: '0.9rem', marginBottom: 10 }}>

@@ -219,7 +219,7 @@ export function AuthPage() {
 
           {error && (
             <>
-              <div className="alert-inline error" role="alert">⚠️ {error.message}</div>
+              <div className="alert-inline error" role="alert"><Icon name="alert" size={14} /> {error.message}</div>
               <FieldErrorsList details={error.details} />
             </>
           )}
@@ -287,7 +287,7 @@ export function AuthPage() {
                 <button type="button" className="auth-text-link auth-forgot" onClick={() => setAuthMode('otp')}>رمز را ندارید؟ ورود با کد یک‌بارمصرف</button>
               </div>
               <button type="submit" className="auth-submit" disabled={busy}>
-                <span>{busy ? 'در حال بررسی...' : 'ورود به حساب'}</span><span aria-hidden="true">←</span>
+                <span>{busy ? 'در حال بررسی...' : 'ورود به حساب'}</span><span aria-hidden="true"><Icon name="arrowLeft" size={16} /></span>
               </button>
             </form>
           )}
@@ -302,7 +302,7 @@ export function AuthPage() {
                     <input id="otp-phone" className="mono" type="tel" inputMode="numeric" dir="ltr" autoComplete="tel" required placeholder="0912 345 6789" value={phone} onChange={(e) => setPhone(e.target.value)} />
                   </div>
                 </div>
-                <button type="submit" className="auth-submit" disabled={busy}>{busy ? 'در حال ارسال کد...' : 'دریافت کد ورود'}<span aria-hidden="true">←</span></button>
+                <button type="submit" className="auth-submit" disabled={busy}>{busy ? 'در حال ارسال کد...' : 'دریافت کد ورود'}<span aria-hidden="true"><Icon name="arrowLeft" size={16} /></span></button>
                 <button type="button" className="auth-text-link auth-back-to-login" onClick={() => setAuthMode('login')}>بازگشت به ورود با رمز عبور</button>
               </form>
             ) : (
@@ -334,7 +334,7 @@ export function AuthPage() {
                   </div>
                 )}
                 <span id="reg-pass-help" className="auth-field-help">حداقل {PASSWORD_MIN_LENGTH} نویسه، شامل حرف بزرگ و کوچک، رقم و نشانهٔ ویژه (مانند !@#$).</span></div>
-              <button type="submit" className="auth-submit" disabled={busy}>{busy ? 'در حال ایجاد حساب...' : 'ایجاد حساب کاربری'}<span aria-hidden="true">←</span></button>
+              <button type="submit" className="auth-submit" disabled={busy}>{busy ? 'در حال ایجاد حساب...' : 'ایجاد حساب کاربری'}<span aria-hidden="true"><Icon name="arrowLeft" size={16} /></span></button>
             </form>
           )}
 
@@ -345,7 +345,7 @@ export function AuthPage() {
           )}
           <div className="auth-install-area">
             <button type="button" className="auth-install-button" onClick={handleInstallApp} disabled={installing || isInstalled}>
-              <span className="auth-install-icon" aria-hidden="true">↓</span>
+              <span className="auth-install-icon" aria-hidden="true"><Icon name="download" size={16} /></span>
               <span>{isInstalled ? 'اپلیکیشن نصب شده است' : installing ? 'در حال باز کردن نصب...' : 'نصب اپلیکیشن'}</span>
             </button>
             {installHelp && !isInstalled && (
@@ -354,7 +354,7 @@ export function AuthPage() {
               </p>
             )}
           </div>
-          <p className="auth-security-note"><span aria-hidden="true">♢</span> امنیت اطلاعات شما برای ما اهمیت دارد</p>
+          <p className="auth-security-note"><Icon name="shieldCheck" size={16} /> امنیت اطلاعات شما برای ما اهمیت دارد</p>
         </div>
 
       </section>
@@ -363,11 +363,11 @@ export function AuthPage() {
 }
 
 const ACCOUNT_MENU_ITEMS = [
-  { key: 'dashboard', to: '/account', label: 'پیشخوان حساب', icon: '🏠' },
-  { key: 'shipping', to: '/account/shipping', label: 'اطلاعات ارسال', icon: '📍' },
-  { key: 'orders', to: '/orders', label: 'سفارش‌ها', icon: '📦' },
-  { key: 'tickets', to: '/tickets', label: 'پشتیبانی', icon: '🎧' },
-  { key: 'notifications', to: '/account/notifications', label: 'اعلان‌ها', icon: '🔔' }
+  { key: 'dashboard', to: '/account', label: 'پیشخوان حساب', icon: 'home' },
+  { key: 'shipping', to: '/account/shipping', label: 'اطلاعات ارسال', icon: 'address' },
+  { key: 'orders', to: '/orders', label: 'سفارش‌ها', icon: 'bag' },
+  { key: 'tickets', to: '/tickets', label: 'پشتیبانی', icon: 'headset' },
+  { key: 'notifications', to: '/account/notifications', label: 'اعلان‌ها', icon: 'bell' }
 ];
 
 function AccountLayout({ active, title, subtitle, children }) {
@@ -377,7 +377,7 @@ function AccountLayout({ active, title, subtitle, children }) {
     <div className="account-shell">
       <aside className="account-sidebar card" aria-label="منوی پنل کاربری">
         <div className="account-identity">
-          <span className="account-avatar" aria-hidden="true">👤</span>
+          <span className="account-avatar" aria-hidden="true"><Icon name="user" size={22} color="#fff" /></span>
           <div style={{ minWidth: 0 }}>
             <strong style={{ display: 'block' }}>{user.full_name}</strong>
             <span className="muted mono" style={{ fontSize: '0.82rem' }}>{user.phone}</span>
@@ -394,18 +394,18 @@ function AccountLayout({ active, title, subtitle, children }) {
               end={it.key === 'dashboard'}
               className={`account-menu-item ${active === it.key ? 'active' : ''}`}
             >
-              <span aria-hidden="true">{it.icon}</span>
+              <span className="account-menu-ico" aria-hidden="true"><Icon name={it.icon} size={18} /></span>
               <span>{it.label}</span>
             </NavLink>
           ))}
         </nav>
         <div className="account-menu-footer">
           <Link to="/shop" className="account-menu-item">
-            <span aria-hidden="true">🏬</span>
+            <span className="account-menu-ico" aria-hidden="true"><Icon name="store" size={18} /></span>
             <span>بازگشت به فروشگاه</span>
           </Link>
           <button type="button" className="account-menu-item danger" onClick={logout}>
-            <span aria-hidden="true">⎋</span>
+            <span className="account-menu-ico" aria-hidden="true"><Icon name="logout" size={18} /></span>
             <span>خروج از حساب</span>
           </button>
         </div>
@@ -507,17 +507,17 @@ export function AccountDashboardPage() {
       title="حساب کاربری من"
       subtitle={`به پنل کاربری ماین خوش آمدید — نقش فعلی: ${ROLE_LABELS[user.role] || user.role}`}
     >
-      {msg && <div className="alert-inline ok" role="status">✓ {msg}</div>}
+      {msg && <div className="alert-inline ok" role="status"><Icon name="check" size={14} /> {msg}</div>}
       {opErr && (
         <>
-          <div className="alert-inline error" role="alert">⚠️ {opErr.message}</div>
+          <div className="alert-inline error" role="alert"><Icon name="alert" size={14} /> {opErr.message}</div>
           <FieldErrorsList details={opErr.details} />
         </>
       )}
 
       <div className="card account-contact-card">
         <div className="account-contact-label">
-          <span aria-hidden="true">📞</span>
+          <Icon name="phone" size={17} />
           <span>شماره موبایل حساب</span>
         </div>
         <div className="account-contact-value mono" dir="ltr">{user.phone}</div>
@@ -527,36 +527,36 @@ export function AccountDashboardPage() {
         <h2 style={{ marginTop: 0, fontSize: '1.08rem' }}>مدیریت حساب</h2>
         <div className="account-manage-list">
           <Link to="/account/shipping" className="account-manage-item">
-            <span className="account-manage-icon" aria-hidden="true">📍</span>
+            <span className="account-manage-icon" aria-hidden="true"><Icon name="address" size={20} /></span>
             <span className="account-manage-text">
               <strong>اطلاعات ارسال و آدرس‌ها</strong>
               <span className="muted">مدیریت اطلاعات ارسال سفارش‌ها</span>
             </span>
-            <span className="account-manage-arrow" aria-hidden="true">←</span>
+            <span className="account-manage-arrow" aria-hidden="true"><Icon name="arrowLeft" size={16} /></span>
           </Link>
           <Link to="/orders" className="account-manage-item">
-            <span className="account-manage-icon" aria-hidden="true">📦</span>
+            <span className="account-manage-icon" aria-hidden="true"><Icon name="bag" size={20} /></span>
             <span className="account-manage-text">
               <strong>سفارش‌های من</strong>
               <span className="muted">پیگیری و جزئیات سفارش‌ها</span>
             </span>
-            <span className="account-manage-arrow" aria-hidden="true">←</span>
+            <span className="account-manage-arrow" aria-hidden="true"><Icon name="arrowLeft" size={16} /></span>
           </Link>
           <Link to="/tickets" className="account-manage-item">
-            <span className="account-manage-icon" aria-hidden="true">🎧</span>
+            <span className="account-manage-icon" aria-hidden="true"><Icon name="headset" size={20} /></span>
             <span className="account-manage-text">
               <strong>پشتیبانی</strong>
               <span className="muted">پرونده‌ها و گفتگوهای پشتیبانی</span>
             </span>
-            <span className="account-manage-arrow" aria-hidden="true">←</span>
+            <span className="account-manage-arrow" aria-hidden="true"><Icon name="arrowLeft" size={16} /></span>
           </Link>
           <Link to="/account/notifications" className="account-manage-item">
-            <span className="account-manage-icon" aria-hidden="true">🔔</span>
+            <span className="account-manage-icon" aria-hidden="true"><Icon name="bell" size={20} /></span>
             <span className="account-manage-text">
               <strong>اعلان‌ها</strong>
               <span className="muted">اطلاع‌رسانی‌های درون‌سامانه‌ای</span>
             </span>
-            <span className="account-manage-arrow" aria-hidden="true">←</span>
+            <span className="account-manage-arrow" aria-hidden="true"><Icon name="arrowLeft" size={16} /></span>
           </Link>
         </div>
       </section>
@@ -802,10 +802,10 @@ export function ProfileAddressesPage() {
             <span className="ship-head-icon" aria-hidden="true"><Icon name="shieldCheck" size={24} /></span>
           </header>
 
-          {msg && <div className="alert-inline ok ship-alert" role="status">✓ {msg}</div>}
+          {msg && <div className="alert-inline ok ship-alert" role="status"><Icon name="check" size={14} /> {msg}</div>}
           {opErr && (
             <div className="ship-alert">
-              <div className="alert-inline error" role="alert">⚠️ {opErr.message}</div>
+              <div className="alert-inline error" role="alert"><Icon name="alert" size={14} /> {opErr.message}</div>
               <FieldErrorsList details={opErr.details} />
             </div>
           )}
@@ -989,7 +989,7 @@ export function NotificationsPage() {
       {data.unread_count > 0 && (
         <div style={{ marginBottom: 12 }}>
           <button type="button" className="btn btn-secondary btn-sm" onClick={markAllRead}>
-            ✓ خوانده‌شدن همه ({data.unread_count.toLocaleString('fa-IR')})
+            <Icon name="check" size={14} /> خوانده‌شدن همه ({data.unread_count.toLocaleString('fa-IR')})
           </button>
         </div>
       )}
@@ -1010,7 +1010,7 @@ export function NotificationsPage() {
               }}
             >
               <div className="flex-between">
-                <strong>{n.is_read ? '' : '🔵 '}{n.title}</strong>
+                <strong>{n.is_read ? null : <Icon name="dot" size={10} />} {n.title}</strong>
                 <span className="muted" style={{ fontSize: '0.8rem' }}>{formatDateTime(n.created_at)}</span>
               </div>
               {n.body && <div style={{ fontSize: '0.9rem', marginTop: 4 }}>{n.body}</div>}

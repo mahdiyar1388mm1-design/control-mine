@@ -4,6 +4,7 @@ import { apiFetch, downloadPrivateFile } from '../lib/api';
 import { formatBytes, formatDateTime, PRIORITY_LABELS, ROLE_LABELS, TICKET_CATEGORY_LABELS } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
 import { EmptyState, ErrorState, FieldErrorsList, LoadingState, StatusBadge } from '../components/StateViews';
+import { Icon } from '../components/Icon';
 
 export function TicketsListPage() {
   const { user, authLoading } = useAuth();
@@ -81,7 +82,7 @@ export function TicketsListPage() {
           <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>ثبت تیکت پشتیبانی جدید</h2>
           {submitErr && (
             <>
-              <div className="alert-inline error">⚠️ {submitErr.message}</div>
+              <div className="alert-inline error"><Icon name="alert" size={14} /> {submitErr.message}</div>
               <FieldErrorsList details={submitErr.details} />
             </>
           )}
@@ -208,7 +209,7 @@ export function TicketDetailPage() {
   return (
     <div>
       <div style={{ marginBottom: 12 }}>
-        <Link to="/tickets" className="muted">← بازگشت به فهرست تیکت‌ها</Link>
+        <Link to="/tickets" className="muted"><Icon name="arrowLeft" size={14} /> بازگشت به فهرست تیکت‌ها</Link>
       </div>
 
       <div className="card">
@@ -230,9 +231,9 @@ export function TicketDetailPage() {
           <h2 style={{ marginTop: 0, fontSize: '1rem' }}>پیوست‌های خصوصی تیکت</h2>
           {ticket.files.map((f) => (
             <div key={f.id} className="flex-between" style={{ padding: '6px 0' }}>
-              <span>📎 {f.original_name} ({formatBytes(f.size_bytes)})</span>
+              <span><Icon name="paperclip" size={16} /> {f.original_name} ({formatBytes(f.size_bytes)})</span>
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => downloadPrivateFile(f.id, f.original_name)}>
-                ⬇ دانلود امن
+                <Icon name="download2" size={14} /> دانلود امن
               </button>
             </div>
           ))}
@@ -252,10 +253,10 @@ export function TicketDetailPage() {
         ))}
 
         {ticket.status === 'closed' ? (
-          <div className="alert-inline warn">🔒 این تیکت بسته شده است و امکان ارسال پیام جدید وجود ندارد.</div>
+          <div className="alert-inline warn"><Icon name="lock2" size={16} /> این تیکت بسته شده است و امکان ارسال پیام جدید وجود ندارد.</div>
         ) : (
           <form onSubmit={handleReply} style={{ marginTop: 14 }}>
-            {sendErr && <div className="alert-inline error" role="alert">⚠️ ارسال ناموفق بود: {sendErr.message}</div>}
+            {sendErr && <div className="alert-inline error" role="alert"><Icon name="alert" size={14} /> ارسال ناموفق بود: {sendErr.message}</div>}
             <label className="form-label" htmlFor="tk-reply">پاسخ جدید</label>
             <textarea
               id="tk-reply"

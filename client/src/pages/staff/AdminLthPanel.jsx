@@ -2,6 +2,21 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '../../lib/api';
 import { formatDateTime, formatNumber } from '../../lib/format';
 import { ErrorState, FieldErrorsList, LoadingState } from '../../components/StateViews';
+import { Icon } from '../../components/Icon';
+
+const TREASURY_ROW_META = {
+  asset: { icon: 'wallet', hint: 'مانده دارایی پروتکل' },
+  market: { icon: 'chart', hint: 'کل LTH در گردش بازار' },
+  base_flow: { icon: 'scale', hint: 'پایهٔ صادرشده منهای پایهٔ بازگشتی' },
+  returned_stake: { icon: 'lock', hint: 'استیک بازگشته به خزانه' },
+  returned_base: { icon: 'arrowRight', hint: 'پایهٔ بازگشته به خزانه' },
+  returned_reward: { icon: 'spark', hint: 'پاداش بازگشته به خزانه' },
+  collected_fee: { icon: 'receipt', hint: 'کارمزدهای وصول‌شده' },
+  tax_accrued: { icon: 'tax', hint: 'مالیات تعلق‌گرفته روی کارمزد' },
+  tax_settled: { icon: 'checkCircle', hint: 'مالیات تسویه‌شده با خزانه' },
+  tax_outstanding: { icon: 'alert', hint: 'مالیات پرداخت‌نشده' },
+  net_fee: { icon: 'coins', hint: 'کارمزد خالص پس از کسر مالیات' }
+};
 
 const LEDGER_TYPE_LABELS = {
   purchase_base: 'خرید اولیه حجم پایه',
@@ -66,6 +81,11 @@ export function AdminLthPanel({ userRole = 'admin' }) {
     reason: ''
   });
   const [logoFile, setLogoFile] = useState(null);
+  const [taxForm, setTaxForm] = useState({ tax_percent: '10', reason: '' });
+  const [settleForm, setSettleForm] = useState({ lth_amount: '', reference: '', reason: '' });
+  const [projection, setProjection] = useState(null);
+  const [projectionBusy, setProjectionBusy] = useState(false);
+  const [projectionForm, setProjectionForm] = useState({ stake_percent: '', target_reward_lth: '' });
 
   const runSearch = useCallback(async (overrideFilters) => {
     const f = overrideFilters || filters;
@@ -102,6 +122,9 @@ export function AdminLthPanel({ userRole = 'admin' }) {
         apiFetch('/admin/lth/reconciliation'),
         apiFetch('/admin/lth/protocol-search?projection_days=30')
       ]);
+      apiFetch('/admin/lth/projection')
+        .then((p) => setProjection(p))
+        .catch(() => setProjection(null));
       const c = cRes.config;
       const t = rRes.treasury;
       setCfg(c);
@@ -123,6 +146,9 @@ export function AdminLthPanel({ userRole = 'admin' }) {
           sell_fee_percent: t.sell_fee_percent,
           reason: ''
         });
+        if (t.protocol_tax_percent !== undefined) {
+          setTaxForm((f) => ({ ...f, tax_percent: String(t.protocol_tax_percent) }));
+        }
       }
     } catch (err) {
       setError(err);
@@ -219,6 +245,66 @@ export function AdminLthPanel({ userRole = 'admin' }) {
     }
   };
 
+  const runProjection = async (e) => {
+    if (e) e.preventDefault();
+    setProjectionBusy(true);
+    setOpErr(null);
+    try {
+      const qs = new URLSearchParams();
+      if (projectionForm.stake_percent !== '') qs.set('stake_percent', projectionForm.stake_percent);
+      if (projectionForm.target_reward_lth.trim()) qs.set('target_reward_lth', projectionForm.target_reward_lth.trim());
+      const res = await apiFetch(`/admin/lth/projection${qs.toString() ? `?${qs}` : ''}`);
+      setProjection(res);
+    } catch (err) {
+      setOpErr(err);
+    } finally {
+      setProjectionBusy(false);
+    }
+  };
+
+  const handleSaveTaxRate = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setOpErr(null);
+    setMsg('');
+    try {
+      await apiFetch('/admin/lth/tax', {
+        method: 'PATCH',
+        body: { tax_percent: Number(taxForm.tax_percent), reason: taxForm.reason.trim() }
+      });
+      setMsg(`نرخ مالیات روی کارمزدها به ${taxForm.tax_percent}٪ تغییر کرد و در ممیزی ثبت شد.`);
+      await loadAll();
+    } catch (err) {
+      setOpErr(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSettleTax = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setOpErr(null);
+    setMsg('');
+    try {
+      await apiFetch('/admin/lth/tax/settle', {
+        method: 'POST',
+        body: {
+          lth_amount: settleForm.lth_amount.trim(),
+          reference: settleForm.reference.trim(),
+          reason: settleForm.reason.trim()
+        }
+      });
+      setMsg('تسویهٔ مالیات پروتکل ثبت شد و در سوابق ممیزی و ردیف‌های خزانه بازتاب یافت.');
+      setSettleForm({ lth_amount: '', reference: '', reason: '' });
+      await loadAll();
+    } catch (err) {
+      setOpErr(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleLogoUpload = async (e) => {
     e.preventDefault();
     if (!logoFile) return;
@@ -268,10 +354,10 @@ export function AdminLthPanel({ userRole = 'admin' }) {
 
   return (
     <div>
-      {msg && <div className="alert-inline ok">✓ {msg}</div>}
+      {msg && <div className="alert-inline ok"><Icon name="check" size={14} /> {msg}</div>}
       {opErr && (
         <>
-          <div className="alert-inline error">⚠️ {opErr.message}</div>
+          <div className="alert-inline error"><Icon name="alert" size={14} /> {opErr.message}</div>
           <FieldErrorsList details={opErr.details} />
         </>
       )}
@@ -283,14 +369,14 @@ export function AdminLthPanel({ userRole = 'admin' }) {
           className={`tab-btn ${subTab === 'protocol-search' ? 'active' : ''}`}
           onClick={() => setSubTab('protocol-search')}
         >
-          🔍 سرچ پروتکل، بررسی موازین و کنترل مقادیر
+          <Icon name="search" size={15} /> سرچ پروتکل، بررسی موازین و کنترل مقادیر
         </button>
         <button
           type="button"
           className={`tab-btn ${subTab === 'treasury' ? 'active' : ''}`}
           onClick={() => setSubTab('treasury')}
         >
-          🏛️ خزانه پروتکل (۱۵٬۰۰۰٬۰۰۰ LTH)
+          <Icon name="landmark" size={15} /> خزانه پروتکل (۱۵٬۰۰۰٬۰۰۰ LTH)
         </button>
         {isAdmin && (
           <button
@@ -298,7 +384,7 @@ export function AdminLthPanel({ userRole = 'admin' }) {
             className={`tab-btn ${subTab === 'settings' ? 'active' : ''}`}
             onClick={() => setSubTab('settings')}
           >
-            ⚖️ ریگلاژ ۷۰/۳۰، نرخ‌ها و لوگوی LTH
+            <Icon name="scale" size={15} /> ریگلاژ ۷۰/۳۰، نرخ‌ها و لوگوی LTH
           </button>
         )}
       </div>
@@ -308,15 +394,15 @@ export function AdminLthPanel({ userRole = 'admin' }) {
         <div className="card" style={{ background: rec.healthy && treasury?.conservation_ok ? '#f0fdf4' : '#fef2f2', borderColor: rec.healthy && treasury?.conservation_ok ? '#86efac' : '#fca5a5' }}>
           <div className="flex-between" style={{ marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
             <h3 style={{ margin: 0, fontSize: '1.03rem', color: rec.healthy ? '#166534' : '#991b1b' }}>
-              {rec.healthy ? '✓ همخوانی کامل دفتر حسابداری و تراز خزانهٔ پروتکل' : '⚠️ هشدار عدم تطابق دفتر حسابداری'}
+              <Icon name={rec.healthy ? 'check' : 'alert'} size={14} /> {rec.healthy ? 'همخوانی کامل دفتر حسابداری و تراز خزانهٔ پروتکل' : 'هشدار عدم تطابق دفتر حسابداری'}
             </h3>
             <div className="flex-gap">
               {isAdmin && (
                 <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={handleManualSettle}>
-                  ⏱️ اجرای دستی پایش ۲۴ ساعتهٔ سرور
+                  <Icon name="clock" size={15} /> اجرای دستی پایش ۲۴ ساعتهٔ سرور
                 </button>
               )}
-              <button type="button" className="btn btn-secondary btn-sm" onClick={loadAll}>🔄 بروزرسانی کل موازین</button>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={loadAll}><Icon name="refresh" size={16} /> بروزرسانی کل موازین</button>
             </div>
           </div>
           <div className="grid grid-4" style={{ fontSize: '0.84rem' }}>
@@ -362,7 +448,7 @@ export function AdminLthPanel({ userRole = 'admin' }) {
               <div className="kpi-card">
                 <div className="kpi-label">پوشش خزانه و استیک در شرف آزادسازی</div>
                 <div className="kpi-value" style={{ fontSize: '0.96rem', color: mc.projection.treasury_covers_projection ? '#15803d' : '#b91c1c' }}>
-                  {mc.projection.treasury_covers_projection ? '✓ پوشش کامل از خزانه' : '⚠ نیازمند بررسی سقف خزانه'}
+                  <Icon name={mc.projection.treasury_covers_projection ? 'check' : 'alert'} size={14} /> {mc.projection.treasury_covers_projection ? 'پوشش کامل از خزانه' : 'نیازمند بررسی سقف خزانه'}
                 </div>
                 <div className="muted" style={{ fontSize: '0.76rem' }}>
                   آزادسازی در این افق: <span className="mono" dir="ltr">{mc.projection.stakes_unlocking_in_window_lth_display_12} LTH</span>
@@ -380,7 +466,7 @@ export function AdminLthPanel({ userRole = 'admin' }) {
             }}
           >
             <h3 style={{ marginTop: 0, fontSize: '1.05rem' }}>
-              🔍 جست‌وجوی یکپارچهٔ پروتکل در بک‌اند (بررسی موازین ۷گانه، قراردادها، شبا و دفتر کل)
+              <Icon name="search" size={16} /> جست‌وجوی یکپارچهٔ پروتکل در بک‌اند (بررسی موازین ۷گانه، قراردادها، شبا و دفتر کل)
             </h3>
             <div className="grid grid-4" style={{ marginBottom: 12 }}>
               <div className="form-row" style={{ marginBottom: 0, gridColumn: 'span 2' }}>
@@ -520,7 +606,7 @@ export function AdminLthPanel({ userRole = 'admin' }) {
                   پاک‌سازی فیلترها
                 </button>
                 <button type="submit" className="btn btn-primary btn-sm" disabled={searching} style={{ background: '#ec1e79' }}>
-                  {searching ? 'در حال جست‌وجو در سرور...' : '🔍 اجرای سرچ پروتکل'}
+                  {searching ? 'در حال جست‌وجو در سرور...' : <><Icon name="search" size={15} /> اجرای سرچ پروتکل</>}
                 </button>
               </div>
             </div>
@@ -533,7 +619,7 @@ export function AdminLthPanel({ userRole = 'admin' }) {
               <div className="flex-between" style={{ marginBottom: 12 }}>
                 <div>
                   <h3 style={{ margin: 0, fontSize: '1.08rem', color: '#be185d' }}>
-                    🔎 بازرسی ۳۶۰ درجهٔ موازین کاربر: {inspectedUser.user.full_name} ({inspectedUser.user.phone_masked})
+                    <Icon name="search" size={16} /> بازرسی ۳۶۰ درجهٔ موازین کاربر: {inspectedUser.user.full_name} ({inspectedUser.user.phone_masked})
                   </h3>
                   <div className="muted" style={{ fontSize: '0.82rem' }}>
                     سریال کیف پول: <span className="mono">{inspectedUser.wallet.wallet_serial}</span> | تطبیق دفتر کل:{' '}
@@ -543,7 +629,7 @@ export function AdminLthPanel({ userRole = 'admin' }) {
                     | استیک آزادشده در کیف پول: <span className="mono" dir="ltr">LTH {inspectedUser.unlocked_stake_pool_lth_display_12}</span>
                   </div>
                 </div>
-                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setInspectedUser(null)}>✕ بستن بازرسی</button>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setInspectedUser(null)}><Icon name="close" size={14} /> بستن بازرسی</button>
               </div>
 
               <div className="grid grid-4" style={{ marginBottom: 12, fontSize: '0.85rem' }}>
@@ -618,7 +704,7 @@ export function AdminLthPanel({ userRole = 'admin' }) {
           {(filters.scope === 'all' || filters.scope === 'wallets') && (
             <div className="card">
               <h3 style={{ marginTop: 0, fontSize: '1.02rem' }}>
-                👛 کیف پول‌های منطبق ({formatNumber((r.wallets || []).length)} مورد)
+                <Icon name="wallet" size={16} /> کیف پول‌های منطبق ({formatNumber((r.wallets || []).length)} مورد)
               </h3>
               {(r.wallets || []).length === 0 ? (
                 <p className="muted" style={{ margin: 0 }}>کیف پولی با فیلترهای انتخابی یافت نشد.</p>
@@ -651,12 +737,12 @@ export function AdminLthPanel({ userRole = 'admin' }) {
                           <td className="mono">{w.metrics.withdrawable_irr_formatted} ریال</td>
                           <td>
                             <span className={`badge ${w.ledger_healthy ? 'badge-ok' : 'badge-danger'}`}>
-                              {w.ledger_healthy ? '✓ منطبق' : '⚠ مغایرت'}
+                              <Icon name={w.ledger_healthy ? 'check' : 'alert'} size={14} /> {w.ledger_healthy ? 'منطبق' : 'مغایرت'}
                             </span>
                           </td>
                           <td>
                             <button type="button" className="btn btn-secondary btn-sm" onClick={() => openUserInspector(w.user_id)}>
-                              🔎 بازرسی ۷ میزان
+                              <Icon name="search" size={14} /> بازرسی ۷ میزان
                             </button>
                           </td>
                         </tr>
@@ -672,7 +758,7 @@ export function AdminLthPanel({ userRole = 'admin' }) {
           {(filters.scope === 'all' || filters.scope === 'contracts') && (
             <div className="card">
               <h3 style={{ marginTop: 0, fontSize: '1.02rem' }}>
-                📜 قراردادهای هوشمند PoS ({formatNumber((r.contracts || []).length)} مورد)
+                <Icon name="book" size={16} /> قراردادهای هوشمند PoS ({formatNumber((r.contracts || []).length)} مورد)
               </h3>
               {(r.contracts || []).length === 0 ? (
                 <p className="muted" style={{ margin: 0 }}>قرارداد هوشمندی یافت نشد.</p>
@@ -707,7 +793,7 @@ export function AdminLthPanel({ userRole = 'admin' }) {
                           </td>
                           <td>
                             <button type="button" className="btn btn-secondary btn-sm" onClick={() => openUserInspector(c.user_id)}>
-                              🔎 کاربر
+                              <Icon name="user" size={14} /> کاربر
                             </button>
                           </td>
                         </tr>
@@ -723,7 +809,7 @@ export function AdminLthPanel({ userRole = 'admin' }) {
           {(filters.scope === 'all' || filters.scope === 'withdrawals') && (r.withdrawals || []).length > 0 && (
             <div className="card">
               <h3 style={{ marginTop: 0, fontSize: '1.02rem' }}>
-                🏦 درخواست‌های برداشت شبا و فروش ({formatNumber(r.withdrawals.length)} مورد)
+                <Icon name="bank" size={16} /> درخواست‌های برداشت شبا و فروش ({formatNumber(r.withdrawals.length)} مورد)
               </h3>
               <div className="table-wrap">
                 <table>
@@ -764,7 +850,7 @@ export function AdminLthPanel({ userRole = 'admin' }) {
           {(filters.scope === 'all' || filters.scope === 'transfers') && (r.transfers || []).length > 0 && (
             <div className="card">
               <h3 style={{ marginTop: 0, fontSize: '1.02rem' }}>
-                🔄 انتقال‌های حساب به حساب ({formatNumber(r.transfers.length)} مورد)
+                <Icon name="swap" size={16} /> انتقال‌های حساب به حساب ({formatNumber(r.transfers.length)} مورد)
               </h3>
               <div className="table-wrap">
                 <table>
@@ -799,7 +885,7 @@ export function AdminLthPanel({ userRole = 'admin' }) {
           {(filters.scope === 'all' || filters.scope === 'ledger') && (
             <div className="card">
               <h3 style={{ marginTop: 0, fontSize: '1.02rem' }}>
-                📒 اسناد دفتر کل حسابداری ({formatNumber((r.ledger_entries || []).length)} ردیف اخیر)
+                <Icon name="book" size={16} /> اسناد دفتر کل حسابداری ({formatNumber((r.ledger_entries || []).length)} ردیف اخیر)
               </h3>
               {(r.ledger_entries || []).length === 0 ? (
                 <p className="muted" style={{ margin: 0 }}>سندی در دفتر کل یافت نشد.</p>
@@ -840,7 +926,7 @@ export function AdminLthPanel({ userRole = 'admin' }) {
           {(filters.scope === 'all' || filters.scope === 'treasury') && (r.treasury_events || []).length > 0 && (
             <div className="card">
               <h3 style={{ marginTop: 0, fontSize: '1.02rem' }}>
-                🏛️ رویدادهای بازگشت به خزانه و وصول کارمزد ({formatNumber(r.treasury_events.length)} مورد)
+                <Icon name="landmark" size={16} /> رویدادهای بازگشت به خزانه و وصول کارمزد ({formatNumber(r.treasury_events.length)} مورد)
               </h3>
               <div className="table-wrap">
                 <table>
@@ -893,28 +979,30 @@ export function AdminLthPanel({ userRole = 'admin' }) {
             </div>
             <div className="lth-treasury-divider" />
             <div className="lth-wallet-rows">
-              <div className="lth-wallet-row">
-                <div className="lth-row-title">مقدار بازار</div>
-                <div className="lth-row-val">LTH {treasury.market_lth_display_12}</div>
-              </div>
-              <div className="lth-wallet-row">
-                <div className="lth-row-title">جمع بازگشت استیک</div>
-                <div className="lth-row-val">LTH {treasury.returned_stake_lth_display_12}</div>
-              </div>
-              <div className="lth-wallet-row">
-                <div className="lth-row-title">جمع بازگشت پایه</div>
-                <div className="lth-row-val">LTH {treasury.returned_base_lth_display_12}</div>
-              </div>
-              <div className="lth-wallet-row">
-                <div className="lth-row-title">جمع کارمزد</div>
-                <div className="lth-row-val">LTH {treasury.collected_fee_lth_display_12}</div>
-              </div>
+              {(treasury.rows || []).filter((row) => row.key !== 'asset' && row.key !== 'market').map((row) => {
+                const meta = TREASURY_ROW_META[row.key] || { icon: 'dot', hint: '' };
+                const negative = row.key === 'tax_outstanding' && BigInt(row.atoms || '0') > 0n;
+                return (
+                  <div className="lth-wallet-row" key={row.key}>
+                    <div className="lth-row-title">
+                      <span className="lth-row-ico" aria-hidden="true"><Icon name={meta.icon} size={16} /></span>
+                      <span>
+                        {row.label}
+                        {meta.hint && <span className="lth-row-hint">{meta.hint}</span>}
+                      </span>
+                    </div>
+                    <div className="lth-row-val" dir="ltr" style={negative ? { color: '#b91c1c' } : undefined}>
+                      LTH {row.net_display_12 || row.display_12 || row.lth_display_12}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
           {isAdmin ? (
             <form onSubmit={handleSaveTreasury} className="card" style={{ marginBottom: 0 }}>
-              <h3 style={{ marginTop: 0, fontSize: '1.05rem' }}>🏛️ کنترل سقف عرضهٔ خزانه و نرخ کارمزد (ویژه مدیر کل)</h3>
+              <h3 style={{ marginTop: 0, fontSize: '1.05rem' }}><Icon name="landmark" size={17} /> کنترل سقف عرضهٔ خزانه و نرخ کارمزد (ویژه مدیر کل)</h3>
               <div className="form-row">
                 <label className="form-label">سقف کل عرضهٔ پروتکل (LTH) <span className="req-star">*</span></label>
                 <input
@@ -967,7 +1055,7 @@ export function AdminLthPanel({ userRole = 'admin' }) {
             </form>
           ) : (
             <div className="card" style={{ marginBottom: 0 }}>
-              <h3 style={{ marginTop: 0, fontSize: '1.05rem' }}>ℹ️ سطح دسترسی واحد مالی</h3>
+              <h3 style={{ marginTop: 0, fontSize: '1.05rem' }}><Icon name="info2" size={17} /> سطح دسترسی واحد مالی</h3>
               <p className="muted">
                 شما به عنوان <strong>کارشناس مالی</strong> دسترسی کامل به استعلام خزانه، تراز عرضه، سرچ پروتکل و بازرسی ۷ میزان کیف پول کاربران دارید. تغییر سقف عرضهٔ ۱۵٬۰۰۰٬۰۰۰ LTH یا ضریب کارمزد مختص مدیر کل است.
               </p>
@@ -976,11 +1064,187 @@ export function AdminLthPanel({ userRole = 'admin' }) {
         </div>
       )}
 
+      {subTab === 'treasury' && treasury && (
+        <div className="two-col-layout" style={{ marginTop: 16 }}>
+          <div className="card" style={{ marginBottom: 0 }}>
+            <h3 style={{ marginTop: 0, fontSize: '1.02rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Icon name="tax" size={18} /> مالیات روی کارمزدهای دریافتی
+            </h3>
+            <p className="muted" style={{ marginTop: 0, fontSize: '0.86rem' }}>
+              روی هر کارمزد وصول‌شده ({treasury.collected_fee_lth_display_12} LTH) مالیات محاسبه و به‌صورت ردیف مستقل در خزانه ثبت می‌شود.
+            </p>
+            <div className="lth-kpi-grid" style={{ marginBottom: 12 }}>
+              <div className="lth-kpi-box">
+                <div className="kpi-label">مالیات تعلق‌گرفته</div>
+                <div className="kpi-value mono" dir="ltr">{treasury.tax_accrued_lth_display_12}</div>
+              </div>
+              <div className="lth-kpi-box">
+                <div className="kpi-label">تسویه‌شده</div>
+                <div className="kpi-value mono" dir="ltr">{treasury.tax_settled_lth_display_12}</div>
+              </div>
+              <div className="lth-kpi-box">
+                <div className="kpi-label">مانده مالیات</div>
+                <div className="kpi-value mono" dir="ltr" style={{ color: BigInt(treasury.tax_outstanding_atoms || '0') > 0n ? '#b91c1c' : '#15803d' }}>
+                  {treasury.tax_outstanding_lth_display_12}
+                </div>
+              </div>
+            </div>
+            {isAdmin ? (
+              <div className="grid grid-2">
+                <form onSubmit={handleSaveTaxRate}>
+                  <div className="form-row">
+                    <label className="form-label">نرخ مالیات (٪ از کارمزد)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      className="input mono"
+                      required
+                      value={taxForm.tax_percent}
+                      onChange={(e) => setTaxForm({ ...taxForm, tax_percent: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-row">
+                    <label className="form-label">علت تغییر <span className="req-star">*</span></label>
+                    <input
+                      className="input"
+                      required
+                      minLength={3}
+                      value={taxForm.reason}
+                      onChange={(e) => setTaxForm({ ...taxForm, reason: e.target.value })}
+                    />
+                  </div>
+                  <button type="submit" className="btn btn-secondary btn-block" disabled={busy}>ثبت نرخ مالیات</button>
+                </form>
+                <form onSubmit={handleSettleTax}>
+                  <div className="form-row">
+                    <label className="form-label">مبلغ تسویه (LTH)</label>
+                    <input
+                      className="input mono"
+                      required
+                      dir="ltr"
+                      placeholder={treasury.tax_outstanding_lth_display_12}
+                      value={settleForm.lth_amount}
+                      onChange={(e) => setSettleForm({ ...settleForm, lth_amount: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-row">
+                    <label className="form-label">مرجع پرداخت به خزانه</label>
+                    <input
+                      className="input"
+                      required
+                      minLength={3}
+                      value={settleForm.reference}
+                      onChange={(e) => setSettleForm({ ...settleForm, reference: e.target.value })}
+                    />
+                  </div>
+                  <button type="submit" className="btn btn-primary btn-block" disabled={busy} style={{ background: '#ec1e79' }}>
+                    ثبت تسویهٔ مالیات
+                  </button>
+                </form>
+              </div>
+            ) : (
+              <p className="muted" style={{ marginBottom: 0 }}>تغییر نرخ و ثبت تسویهٔ مالیات در اختیار مدیر کل است؛ کارشناس مالی فقط گزارش را می‌بیند.</p>
+            )}
+          </div>
+
+          <div className="card" style={{ marginBottom: 0 }}>
+            <h3 style={{ marginTop: 0, fontSize: '1.02rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Icon name="chart" size={18} /> پاداش کل بازار و ستون مهندسی معکوس
+            </h3>
+            {projection ? (
+              <>
+                <div className="lth-kpi-grid" style={{ marginBottom: 12 }}>
+                  <div className="lth-kpi-box">
+                    <div className="kpi-label">پاداش بازار (۲۴ساعته)</div>
+                    <div className="kpi-value mono" dir="ltr">{projection.live_market_reward?.total_reward_lth_display_12}</div>
+                  </div>
+                  <div className="lth-kpi-box">
+                    <div className="kpi-label">از این پاداش: استیک</div>
+                    <div className="kpi-value mono" dir="ltr">{projection.live_market_reward?.staked_reward_lth_display_12}</div>
+                  </div>
+                  <div className="lth-kpi-box">
+                    <div className="kpi-label">از این پاداش: قابل برداشت</div>
+                    <div className="kpi-value mono" dir="ltr">{projection.live_market_reward?.withdrawable_reward_lth_display_12}</div>
+                  </div>
+                </div>
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>سناریو</th>
+                        <th>میزان بازار</th>
+                        <th>پاداش ۲۴ساعته</th>
+                        <th>ارزش پاداش (ریال)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(projection.scenarios?.live_market || []).map((row) => (
+                        <tr key={`lm-${row.stake_percent}`}>
+                          <td>{row.stake_percent}٪ استیک / {row.withdrawable_percent}٪ آزاد</td>
+                          <td className="mono" dir="ltr">{row.base_lth_display_12}</td>
+                          <td className="mono" dir="ltr">{row.total_reward_lth_display_12}</td>
+                          <td className="mono" dir="ltr">{formatNumber(row.total_reward_irr_exact)}</td>
+                        </tr>
+                      ))}
+                      {(projection.scenarios?.full_supply || []).map((row) => (
+                        <tr key={`fs-${row.stake_percent}`}>
+                          <td>کل عرضه — {row.stake_percent}٪ استیک / {row.withdrawable_percent}٪ آزاد</td>
+                          <td className="mono" dir="ltr">{row.base_lth_display_12}</td>
+                          <td className="mono" dir="ltr">{row.total_reward_lth_display_12}</td>
+                          <td className="mono" dir="ltr">{formatNumber(row.total_reward_irr_exact)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {projection.target_engineering && (
+                  <p className="muted" style={{ fontSize: '0.84rem', marginBottom: 0 }}>
+                    برای رسیدن به پاداش هدف {projection.target_engineering.requested_reward_lth_exact} LTH، میزان بازار لازم{' '}
+                    <strong className="mono" dir="ltr">{projection.target_engineering.required_market_lth_display_12} LTH</strong>{' '}
+                    ({projection.target_engineering.market_share_of_supply_percent}٪ از عرضه) —{' '}
+                    {projection.target_engineering.achievable_within_supply ? 'در سقف عرضه ممکن است' : 'فراتر از سقف عرضه است'}.
+                  </p>
+                )}
+                <form onSubmit={runProjection} className="grid grid-2" style={{ marginTop: 12 }}>
+                  <div className="form-row" style={{ marginBottom: 0 }}>
+                    <label className="form-label">سهم استیک (٪) — پیش‌فرض ۷۰</label>
+                    <input
+                      className="input mono"
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={projectionForm.stake_percent}
+                      onChange={(e) => setProjectionForm({ ...projectionForm, stake_percent: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-row" style={{ marginBottom: 0 }}>
+                    <label className="form-label">پاداش هدف (LTH)</label>
+                    <input
+                      className="input mono"
+                      dir="ltr"
+                      value={projectionForm.target_reward_lth}
+                      onChange={(e) => setProjectionForm({ ...projectionForm, target_reward_lth: e.target.value })}
+                    />
+                  </div>
+                  <button type="submit" className="btn btn-secondary" style={{ gridColumn: '1 / -1' }} disabled={projectionBusy}>
+                    محاسبهٔ سناریو
+                  </button>
+                </form>
+              </>
+            ) : (
+              <p className="muted">داده‌ای برای پیش‌بینی موجود نیست.</p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ==================== TAB 3: ADMIN REGULATOR & LOGO ==================== */}
       {subTab === 'settings' && isAdmin && (
         <div className="two-col-layout">
           <form onSubmit={handleSaveSettings} className="card">
-            <h3 style={{ marginTop: 0, fontSize: '1.06rem' }}>⚙️ ریگلاژ تناسب استیک / قابل برداشت و نرخ‌های موتور LTH</h3>
+            <h3 style={{ marginTop: 0, fontSize: '1.06rem' }}><Icon name="settings" size={17} /> ریگلاژ تناسب استیک / قابل برداشت و نرخ‌های موتور LTH</h3>
 
             <div style={{ background: '#fdf2f8', border: '1px solid #fbcfe8', borderRadius: 12, padding: 14, marginBottom: 14 }}>
               <div className="flex-between" style={{ marginBottom: 6 }}>
@@ -1086,7 +1350,7 @@ export function AdminLthPanel({ userRole = 'admin' }) {
           </form>
 
           <form onSubmit={handleLogoUpload} className="card">
-            <h3 style={{ marginTop: 0, fontSize: '1.06rem' }}>🖼️ بارگذاری تصویر لوگوی ال تی اچ (LTH Logo)</h3>
+            <h3 style={{ marginTop: 0, fontSize: '1.06rem' }}><Icon name="image2" size={17} /> بارگذاری تصویر لوگوی ال تی اچ (LTH Logo)</h3>
             <p className="muted" style={{ fontSize: '0.86rem' }}>
               تصویر انتخاب‌شده بلافاصله در «نوار بالای کیف پول»، «خزانه» و «صفحهٔ محاسبه‌گر ماین» جایگزین می‌شود.
             </p>

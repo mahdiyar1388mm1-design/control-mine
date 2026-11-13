@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { LthTopBar } from '../components/LthTopBar';
 import { LthWalletCard } from '../components/LthWalletCard';
 import { EmptyState, ErrorState, FieldErrorsList, LoadingState, StatusBadge } from '../components/StateViews';
+import { Icon } from '../components/Icon';
 
 const WALLET_PANELS = ['sheba', 'sell', 'contracts', 'p2p'];
 const WALLET_PANEL_TITLES = {
@@ -210,7 +211,7 @@ export function LthWalletPage() {
       {isDedicatedPanelPage && (
         <div className="flex-between" style={{ margin: '4px 0 14px', order: 4 }}>
           <h1 style={{ margin: 0, fontSize: '1.2rem' }}>{WALLET_PANEL_TITLES[activePanel]}</h1>
-          <Link to="/wallet" className="muted">← بازگشت به کیف پول</Link>
+          <Link to="/wallet" className="muted"><Icon name="arrowLeft" size={14} /> بازگشت به کیف پول</Link>
         </div>
       )}
 
@@ -223,7 +224,7 @@ export function LthWalletPage() {
           />
 
           <div className="muted" style={{ fontSize: '0.8rem', textAlign: 'center', marginBottom: 12 }}>
-            ℹ️ {cfg.phase_notes?.tmn_and_toman_wallet_rows} • <Link to="/treasury"><strong>مشاهدهٔ وضعیت خزانهٔ پروتکل ←</strong></Link>
+            <Icon name="info2" size={14} /> {cfg.phase_notes?.tmn_and_toman_wallet_rows} • <Link to="/treasury"><strong>مشاهدهٔ وضعیت خزانهٔ پروتکل <Icon name="arrowLeft" size={13} /></strong></Link>
           </div>
 
           {/* Wallet actions each open a dedicated route. */}
@@ -249,17 +250,17 @@ export function LthWalletPage() {
               className={`btn ${activePanel === 'p2p' ? 'btn-primary' : 'btn-secondary'}`}
               onClick={() => selectPanel('p2p')}
             >
-              💳 حساب به حساب (PAY)
+              <Icon name="money" size={15} /> حساب به حساب (PAY)
             </button>
             <Link to="/lth-calculator" className="btn btn-primary" style={{ background: '#ec1e79' }}>
-              ➕ خرید پکیج / محاسبه‌گر LTH
+              <Icon name="plus2" size={15} /> خرید پکیج / محاسبه‌گر LTH
             </Link>
           </div>
 
           <section className="card" style={{ background: rec.healthy ? '#f0fdf4' : '#fef2f2', borderColor: rec.healthy ? '#86efac' : '#fca5a5' }}>
             <div className="flex-between" style={{ marginBottom: 6 }}>
               <strong style={{ color: rec.healthy ? '#166534' : '#991b1b' }}>
-                {rec.healthy ? '✓ نشان سلامت و همخوانی با دفتر حسابداری' : '⚠️ هشدار تطبیق دفتر حسابداری'}
+                <Icon name={rec.healthy ? 'check' : 'alert'} size={14} /> {rec.healthy ? 'نشان سلامت و همخوانی با دفتر حسابداری' : 'هشدار تطبیق دفتر حسابداری'}
               </strong>
               <span className={`badge ${rec.healthy ? 'badge-ok' : 'badge-danger'}`}>
                 {rec.status_label}
@@ -276,10 +277,10 @@ export function LthWalletPage() {
         </>
       )}
 
-      {msg && <div className="alert-inline ok">✓ {msg}</div>}
+      {msg && <div className="alert-inline ok"><Icon name="check" size={14} /> {msg}</div>}
       {opErr && (
         <>
-          <div className="alert-inline error">⚠️ {opErr.message}</div>
+          <div className="alert-inline error"><Icon name="alert" size={14} /> {opErr.message}</div>
           <FieldErrorsList details={opErr.details} />
         </>
       )}
@@ -289,7 +290,7 @@ export function LthWalletPage() {
       {activePanel === 'sheba' && (
         <section className="card" style={isDedicatedPanelPage ? { order: 5 } : undefined}>
           <div className="flex-between" style={{ marginBottom: 10 }}>
-            <h2 style={{ margin: 0, fontSize: '1.08rem' }}>🏦 ثبت درخواست برداشت شبا (به ریال)</h2>
+            <h2 style={{ margin: 0, fontSize: '1.08rem' }}><Icon name="bank" size={16} /> ثبت درخواست برداشت شبا (به ریال)</h2>
             <span className="badge badge-info">سقف قابل برداشت: {w.withdrawable_irr_formatted} ریال</span>
           </div>
           <p className="muted" style={{ fontSize: '0.86rem', marginTop: 0 }}>
@@ -345,7 +346,7 @@ export function LthWalletPage() {
       {activePanel === 'sell' && (
         <section className="card" style={isDedicatedPanelPage ? { order: 5 } : undefined}>
           <div className="flex-between" style={{ marginBottom: 10 }}>
-            <h2 style={{ margin: 0, fontSize: '1.08rem', color: '#be185d' }}>💱 فروش موجودی قابل برداشت LTH به نرخ سرور</h2>
+            <h2 style={{ margin: 0, fontSize: '1.08rem', color: '#be185d' }}><Icon name="swap" size={16} /> فروش موجودی قابل برداشت LTH به نرخ سرور</h2>
             <span className="badge badge-info">قابل فروش: LTH {w.total_withdrawable_lth_display_8}</span>
           </div>
           <p className="muted" style={{ fontSize: '0.86rem', marginTop: 0 }}>
@@ -401,7 +402,7 @@ export function LthWalletPage() {
       {activePanel === 'p2p' && (
         <section className="card" style={isDedicatedPanelPage ? { order: 5 } : undefined}>
           <div className="flex-between" style={{ marginBottom: 10 }}>
-            <h2 style={{ margin: 0, fontSize: '1.08rem' }}>💳 انتقال حساب به حساب (PAY)</h2>
+            <h2 style={{ margin: 0, fontSize: '1.08rem' }}><Icon name="money" size={16} /> انتقال حساب به حساب (PAY)</h2>
             <span className="badge badge-info">قابل انتقال: LTH {w.total_withdrawable_lth_display_8}</span>
           </div>
           <p className="muted" style={{ fontSize: '0.86rem', marginTop: 0 }}>
@@ -483,8 +484,8 @@ export function LthWalletPage() {
       {activePanel === 'contracts' && (
         <section className="card" style={isDedicatedPanelPage ? { order: 5 } : undefined}>
           <div className="flex-between" style={{ marginBottom: 10 }}>
-            <h2 style={{ margin: 0, fontSize: '1.08rem' }}>📜 قراردادهای هوشمند استیک (Proof of Stake) و واریز ۲۴ ساعته</h2>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={loadWallet}>🔄 بروزرسانی از سرور</button>
+            <h2 style={{ margin: 0, fontSize: '1.08rem' }}><Icon name="book" size={16} /> قراردادهای هوشمند استیک (Proof of Stake) و واریز ۲۴ ساعته</h2>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={loadWallet}><Icon name="refresh" size={16} /> بروزرسانی از سرور</button>
           </div>
           <p className="muted" style={{ fontSize: '0.85rem', marginTop: 0 }}>
             هر خرید یک قرارداد مستقل Proof of Stake ایجاد می‌کند. سرور هر ۲۴ ساعت پاداش متناظر را محاسبه و واریز می‌نماید ({cfg.stake_percent}٪ استیک قفل‌شده به مدت {cfg.lockup_days.toLocaleString('fa-IR')} روز از زمان خرید + {cfg.withdrawable_percent}٪ قابل برداشت آنی).
@@ -526,7 +527,7 @@ export function LthWalletPage() {
 
           {ledger.length > 0 && (
             <div style={{ marginTop: 18 }}>
-              <h3 style={{ fontSize: '0.96rem', marginBottom: 8 }}>📒 آخرین ثبت‌های دفتر حسابداری کیف پول شما</h3>
+              <h3 style={{ fontSize: '0.96rem', marginBottom: 8 }}><Icon name="book" size={16} /> آخرین ثبت‌های دفتر حسابداری کیف پول شما</h3>
               <div className="table-wrap">
                 <table className="table">
                   <thead>

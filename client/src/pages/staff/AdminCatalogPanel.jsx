@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { apiFetch, authFetch } from '../../lib/api';
 import { formatMoney, formatNumber } from '../../lib/format';
 import { ConfirmDialog, ErrorState, FieldErrorsList, LoadingState, StatusBadge } from '../../components/StateViews';
+import { Icon } from '../../components/Icon';
 
 const EMPTY_SKU = { code: '', price_toman: '', cost_price_toman: '0', stock: '0', attrKey: 'مدل', attrVal: 'استاندارد' };
 
@@ -184,10 +185,10 @@ export function AdminCatalogPanel() {
 
   return (
     <div>
-      {msg && <div className="alert-inline ok">✓ {msg}</div>}
+      {msg && <div className="alert-inline ok"><Icon name="check" size={14} /> {msg}</div>}
       {opErr && (
         <>
-          <div className="alert-inline error">⚠️ {opErr.message}</div>
+          <div className="alert-inline error"><Icon name="alert" size={14} /> {opErr.message}</div>
           <FieldErrorsList details={opErr.details} />
         </>
       )}

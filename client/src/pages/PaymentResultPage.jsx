@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { formatDateTime, formatMoney } from '../lib/format';
 import { ErrorState, LoadingState, StatusBadge } from '../components/StateViews';
+import { Icon } from '../components/Icon';
 
 /**
  * Payment Result Page (§5 & §11):
@@ -50,10 +51,10 @@ export function PaymentResultPage() {
       <div className={`state-box ${isPaid ? 'ok' : (isUnknownOrExpired ? 'warn' : 'error')}`}>
         <div className="flex-between" style={{ marginBottom: 10 }}>
           <h1 style={{ margin: 0, fontSize: '1.3rem' }}>
-            {isPaid && '✓ پرداخت آزمایشی با موفقیت تأیید شد'}
-            {payment.status === 'failed' && '✕ پرداخت ناموفق بود'}
-            {isUnknownOrExpired && '❓ نتیجهٔ پرداخت نامعلوم یا منقضی‌شده است'}
-            {payment.status === 'refunded' && '↩ مبلغ این پرداخت مسترد شده است'}
+            {isPaid && <><Icon name="check" size={15} /> پرداخت آزمایشی با موفقیت تأیید شد</>}
+            {payment.status === 'failed' && <><Icon name="close" size={15} /> پرداخت ناموفق بود</>}
+            {isUnknownOrExpired && <><Icon name="help" size={15} /> نتیجهٔ پرداخت نامعلوم یا منقضی‌شده است</>}
+            {payment.status === 'refunded' && <><Icon name="undo" size={15} /> مبلغ این پرداخت مسترد شده است</>}
           </h1>
           <StatusBadge status={payment.status} />
         </div>
@@ -93,7 +94,7 @@ export function PaymentResultPage() {
             </Link>
           )}
           <button type="button" className="btn btn-secondary" onClick={loadPayment}>
-            🔄 استعلام مجدد وضعیت از سرور
+            <Icon name="refresh" size={15} /> استعلام مجدد وضعیت از سرور
           </button>
         </div>
       </div>

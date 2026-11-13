@@ -6,6 +6,7 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/StateView
 import { FinanceReportsPanel, SupportTicketsPanel, WarehousePanel } from './SupportWarehouseFinancePanels';
 import { AdminLthPanel } from './AdminLthPanel';
 import { AdminConsolePanel } from './admin/AdminConsolePanel';
+import { Icon } from '../../components/Icon';
 
 export function StaffWorkspacePage() {
   const { user, authLoading } = useAuth();
@@ -15,19 +16,19 @@ export function StaffWorkspacePage() {
   const allowedSections = [];
   if (user) {
     if (['support', 'admin'].includes(user.role)) {
-      allowedSections.push({ id: 'support', label: '💬 میزکار پشتیبانی' });
+      allowedSections.push({ id: 'support', label: 'میزکار پشتیبانی', icon: 'message' });
     }
     if (['warehouse', 'admin'].includes(user.role)) {
-      allowedSections.push({ id: 'warehouse', label: '📦 انبار، موجودی و ارسال' });
+      allowedSections.push({ id: 'warehouse', label: 'انبار، موجودی و ارسال', icon: 'package' });
     }
     if (['finance', 'support', 'admin'].includes(user.role)) {
-      allowedSections.push({ id: 'finance-reports', label: user.role === 'finance' ? '💳 امور مالی و گزارش‌ها' : '📊 گزارش‌های مجاز' });
+      allowedSections.push({ id: 'finance-reports', label: user.role === 'finance' ? 'امور مالی و گزارش‌ها' : 'گزارش‌های مجاز', icon: user.role === 'finance' ? 'money' : 'chart' });
     }
     if (['admin', 'finance'].includes(user.role)) {
-      allowedSections.push({ id: 'lth-protocol', label: '🔍 سرچ پروتکل و موازین LTH' });
+      allowedSections.push({ id: 'lth-protocol', label: 'سرچ پروتکل و موازین LTH', icon: 'search' });
     }
     if (user.role === 'admin') {
-      allowedSections.push({ id: 'admin', label: '🛡️ مدیریت سامانه و ممیزی' });
+      allowedSections.push({ id: 'admin', label: 'مدیریت سامانه و ممیزی', icon: 'shield' });
     }
   }
 
@@ -89,7 +90,7 @@ export function StaffWorkspacePage() {
           <h1 className="page-title">پنل عملیاتی کارکنان — {ROLE_LABELS[user.role]}</h1>
           <p className="page-subtitle">کارهای نیازمند اقدام فوری بر اساس سطح مجوز سرور در صدر صفحه برجسته شده‌اند.</p>
         </div>
-        <button type="button" className="btn btn-secondary btn-sm" onClick={loadOverview}>🔄 بروزرسانی شاخص‌های صف</button>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={loadOverview}><Icon name="refresh" size={16} /> بروزرسانی شاخص‌های صف</button>
       </div>
 
       {ovError && <ErrorState error={ovError} onRetry={loadOverview} />}
@@ -142,6 +143,7 @@ export function StaffWorkspacePage() {
             className={`tab-btn ${activeSection === sec.id ? 'active' : ''}`}
             onClick={() => setActiveSection(sec.id)}
           >
+            {sec.icon && <Icon name={sec.icon} size={15} />}
             {sec.label}
           </button>
         ))}

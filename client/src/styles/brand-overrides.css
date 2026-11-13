@@ -275,3 +275,128 @@
 @media (prefers-reduced-motion: reduce) {
   .shop-brand-pill { transition: none; }
 }
+
+/* ---------- Account panel: real SVG icons instead of stripped emoji ---------- */
+.account-avatar {
+  background: linear-gradient(135deg, #ec1e79, #be185d);
+  color: #ffffff;
+}
+
+.account-menu-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border-radius: 9px;
+  background: #fce7f3;
+  color: #be185d;
+}
+
+.account-menu-item {
+  gap: 10px;
+}
+
+.account-menu-item.active .account-menu-ico,
+.account-menu-item:hover .account-menu-ico {
+  background: #ec1e79;
+  color: #ffffff;
+}
+
+.account-menu-item.active {
+  background: #fdf2f8;
+  color: #be185d;
+  font-weight: 800;
+}
+
+.account-menu-item.danger .account-menu-ico {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.account-menu-item.danger:hover .account-menu-ico {
+  background: #b91c1c;
+  color: #ffffff;
+}
+
+.account-manage-icon {
+  background: #fce7f3;
+  color: #be185d;
+}
+
+.account-manage-item:hover .account-manage-icon {
+  background: #ec1e79;
+  color: #ffffff;
+}
+
+.account-manage-arrow {
+  color: #ec1e79;
+}
+
+.account-contact-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.auth-security-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+/* ===================== LTH admin treasury rows / tax / projection ===================== */
+.lth-row-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: #fdf2f8;
+  border: 1px solid #fbcfe8;
+  color: #be185d;
+  flex: 0 0 auto;
+  margin-inline-end: 8px;
+}
+
+.lth-row-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.lth-row-hint {
+  display: block;
+  font-size: 0.72rem;
+  color: #94a3b8;
+  font-weight: 400;
+  margin-top: 2px;
+}
+
+.lth-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.lth-kpi-box {
+  background: #fff7fb;
+  border: 1px solid #fbcfe8;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.lth-kpi-box .kpi-label {
+  font-size: 0.78rem;
+  color: #9d174d;
+  margin-bottom: 4px;
+}
+
+.lth-kpi-box .kpi-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #831843;
+  letter-spacing: -0.01em;
+}

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '../../lib/api';
 import { formatDateTime, formatMoney, formatNumber, PRIORITY_LABELS, ROLE_LABELS, TICKET_CATEGORY_LABELS } from '../../lib/format';
 import { ConfirmDialog, EmptyState, ErrorState, FieldErrorsList, LoadingState, StatusBadge } from '../../components/StateViews';
+import { Icon } from '../../components/Icon';
 
 /* ===================== SUPPORT PANEL ===================== */
 
@@ -188,8 +189,8 @@ export function SupportTicketsPanel() {
                   <h3 style={{ margin: 0, fontSize: '1.05rem' }}>{selected.code} — {selected.subject}</h3>
                   <StatusBadge status={selected.status} />
                 </div>
-                {msg && <div className="alert-inline ok">✓ {msg}</div>}
-                {opErr && <div className="alert-inline error">⚠️ {opErr.message}</div>}
+                {msg && <div className="alert-inline ok"><Icon name="check" size={14} /> {msg}</div>}
+                {opErr && <div className="alert-inline error"><Icon name="alert" size={14} /> {opErr.message}</div>}
 
                 {(selected.messages || []).map((m) => (
                   <div key={m.id} className={`msg-item ${m.author_role !== 'customer' ? 'operator' : ''}`}>
@@ -361,17 +362,17 @@ export function WarehousePanel() {
     <div>
       <div className="tabs">
         <button type="button" className={`tab-btn ${subTab === 'orders' ? 'active' : ''}`} onClick={() => setSubTab('orders')}>
-          📦 صف آماده‌سازی و ارسال سفارش‌ها
+          <Icon name="package" size={16} /> صف آماده‌سازی و ارسال سفارش‌ها
         </button>
         <button type="button" className={`tab-btn ${subTab === 'stock' ? 'active' : ''}`} onClick={() => setSubTab('stock')}>
-          🏷️ موجودی انبار و اصلاح با دلیل
+          <Icon name="tagIcon" size={16} /> موجودی انبار و اصلاح با دلیل
         </button>
       </div>
 
-      {msg && <div className="alert-inline ok">✓ {msg}</div>}
+      {msg && <div className="alert-inline ok"><Icon name="check" size={14} /> {msg}</div>}
       {opErr && (
         <>
-          <div className="alert-inline error">⚠️ {opErr.message}</div>
+          <div className="alert-inline error"><Icon name="alert" size={14} /> {opErr.message}</div>
           <FieldErrorsList details={opErr.details} />
         </>
       )}
@@ -453,7 +454,7 @@ export function WarehousePanel() {
 
                     {selectedOrder.status === 'paid' && (
                       <button type="button" className="btn btn-primary btn-block" disabled={busy} onClick={() => advanceOrder('preparing')}>
-                        📦 ثبت شروع آماده‌سازی و بسته‌بندی
+                        <Icon name="package" size={15} /> ثبت شروع آماده‌سازی و بسته‌بندی
                       </button>
                     )}
 
@@ -468,14 +469,14 @@ export function WarehousePanel() {
                           placeholder="POST-IR-..."
                         />
                         <button type="button" className="btn btn-ok btn-block" disabled={busy || !trackingCode.trim()} onClick={() => advanceOrder('shipped')}>
-                          🚚 ثبت تحویل به پست و ارسال مرسوله
+                          <Icon name="truck2" size={15} /> ثبت تحویل به پست و ارسال مرسوله
                         </button>
                       </div>
                     )}
 
                     {selectedOrder.status === 'return_in_progress' && (
                       <button type="button" className="btn btn-primary btn-block" disabled={busy} onClick={() => advanceOrder('returned')}>
-                        ↩ تأیید دریافت فیزیکی کالای مرجوعی در انبار
+                        <Icon name="undo" size={15} /> تأیید دریافت فیزیکی کالای مرجوعی در انبار
                       </button>
                     )}
                   </>
@@ -700,35 +701,35 @@ export function FinanceReportsPanel({ userRole }) {
       <div className="tabs">
         {canPayments && (
           <button type="button" className={`tab-btn ${tab === 'payments' ? 'active' : ''}`} onClick={() => setTab('payments')}>
-            💳 تراکنش‌ها و استرداد وجه
+            <Icon name="money" size={15} /> تراکنش‌ها و استرداد وجه
           </button>
         )}
         {canPayments && (
           <button type="button" className={`tab-btn ${tab === 'lth-withdrawals' ? 'active' : ''}`} onClick={() => setTab('lth-withdrawals')}>
-            🏦 تسویهٔ شبا و دفتر کل LTH
+            <Icon name="bank" size={15} /> تسویهٔ شبا و دفتر کل LTH
           </button>
         )}
         {canSalesReport && (
           <button type="button" className={`tab-btn ${tab === 'rep-sales' ? 'active' : ''}`} onClick={() => setTab('rep-sales')}>
-            📊 گزارش فروش کالا و سود تاریخی
+            <Icon name="chart" size={15} /> گزارش فروش کالا و سود تاریخی
           </button>
         )}
         {canPayments && (
           <button type="button" className={`tab-btn ${tab === 'rep-payments' ? 'active' : ''}`} onClick={() => setTab('rep-payments')}>
-            📊 گزارش پرداخت‌ها و استردادها
+            <Icon name="chart" size={15} /> گزارش پرداخت‌ها و استردادها
           </button>
         )}
         {canTicketsReport && (
           <button type="button" className={`tab-btn ${tab === 'rep-tickets' ? 'active' : ''}`} onClick={() => setTab('rep-tickets')}>
-            📊 گزارش تیکت‌های پشتیبانی
+            <Icon name="chart" size={15} /> گزارش تیکت‌های پشتیبانی
           </button>
         )}
       </div>
 
-      {msg && <div className="alert-inline ok">✓ {msg}</div>}
+      {msg && <div className="alert-inline ok"><Icon name="check" size={14} /> {msg}</div>}
       {opErr && (
         <>
-          <div className="alert-inline error">⚠️ {opErr.message}</div>
+          <div className="alert-inline error"><Icon name="alert" size={14} /> {opErr.message}</div>
           <FieldErrorsList details={opErr.details} />
         </>
       )}
@@ -797,7 +798,7 @@ export function FinanceReportsPanel({ userRole }) {
             <div className="card" style={{ background: lthReconciliation.healthy ? '#f0fdf4' : '#fef2f2', borderColor: lthReconciliation.healthy ? '#86efac' : '#fca5a5' }}>
               <div className="flex-between">
                 <strong style={{ color: lthReconciliation.healthy ? '#166534' : '#991b1b' }}>
-                  {lthReconciliation.healthy ? '✓ نشان سلامت و همخوانی دفتر کل حسابداری LTH' : '⚠️ هشدار تطبیق دفتر کل LTH'}
+                  <Icon name={lthReconciliation.healthy ? 'check' : 'alert'} size={14} /> {lthReconciliation.healthy ? 'نشان سلامت و همخوانی دفتر کل حسابداری LTH' : 'هشدار تطبیق دفتر کل LTH'}
                 </strong>
                 <span className={`badge ${lthReconciliation.healthy ? 'badge-ok' : 'badge-danger'}`}>
                   {lthReconciliation.status_label}

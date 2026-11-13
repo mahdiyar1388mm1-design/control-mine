@@ -4,6 +4,7 @@ import { apiFetch, newIdempotencyKey } from '../lib/api';
 import { formatMoney, formatNumber } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
 import { EmptyState, ErrorState, FieldErrorsList, LoadingState, ProductImage } from '../components/StateViews';
+import { Icon } from '../components/Icon';
 
 export function CartCheckoutPage() {
   const { user, authLoading, refreshCounts } = useAuth();
@@ -186,7 +187,7 @@ export function CartCheckoutPage() {
 
       {submitError && (
         <>
-          <div className="alert-inline error" role="alert">⚠️ {submitError.message}</div>
+          <div className="alert-inline error" role="alert"><Icon name="alert" size={14} /> {submitError.message}</div>
           <FieldErrorsList details={submitError.details} />
         </>
       )}
@@ -222,7 +223,7 @@ export function CartCheckoutPage() {
                     </div>
                     {stockIssue && (
                       <div className="field-error">
-                        ⚠️ موجودی انبار تغییر کرده است (موجودی فعلی: {formatNumber(it.stock)}). لطفاً تعداد را اصلاح یا قلم را حذف کنید.
+                        <Icon name="alert" size={14} /> موجودی انبار تغییر کرده است (موجودی فعلی: {formatNumber(it.stock)}). لطفاً تعداد را اصلاح یا قلم را حذف کنید.
                       </div>
                     )}
                     <div className="flex-gap" style={{ marginTop: 8 }}>
@@ -302,7 +303,7 @@ export function CartCheckoutPage() {
                 <p className="muted" style={{ marginTop: -6, fontSize: '.82rem' }}>نشانی ذخیره می‌شود تا در سفارش‌های بعدی دوباره واردش نکنید.</p>
                 {addrError && (
                   <>
-                    <div className="alert-inline error">⚠️ {addrError.message}</div>
+                    <div className="alert-inline error"><Icon name="alert" size={14} /> {addrError.message}</div>
                     <FieldErrorsList details={addrError.details} />
                   </>
                 )}

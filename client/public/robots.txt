@@ -1,0 +1,31 @@
+# CENTRAL MINE — https://centralmine.ir
+User-agent: *
+Allow: /
+Allow: /shop
+Allow: /products/
+Allow: /lth-calculator
+Allow: /wallet
+Allow: /treasury
+Allow: /central-mine-logo.jpg
+Allow: /central-mine-logo.svg
+
+# Private areas: never crawl or index
+Disallow: /staff
+Disallow: /account
+Disallow: /cart
+Disallow: /pay/
+Disallow: /orders
+Disallow: /tickets
+Disallow: /auth
+Disallow: /notifications
+Disallow: /api/
+Disallow: /uploads/
+
+# Crawlers that honour crawl-delay
+User-agent: AhrefsBot
+Crawl-delay: 10
+
+User-agent: SemrushBot
+Crawl-delay: 10
+
+Sitemap: https://centralmine.ir/sitemap.xml

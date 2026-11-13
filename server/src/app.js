@@ -28,6 +28,7 @@ const adminRoutes = require('./modules/admin/routes');
 const adminConsoleRoutes = require('./modules/admin/console');
 const adminSecurityRoutes = require('./modules/admin/security');
 const lthRoutes = require('./modules/lth/routes');
+const seoRoutes = require('./modules/seo/routes').router;
 
 const pkg = require('../package.json');
 
@@ -156,6 +157,7 @@ function createApp() {
   app.use('/api/v1/admin/console', adminConsoleRoutes);
   app.use('/api/v1', adminRoutes);
   app.use('/api/v1', lthRoutes);
+  app.use('/', seoRoutes);
 
   // Unknown API routes return JSON 404
   app.use('/api', notFoundHandler);

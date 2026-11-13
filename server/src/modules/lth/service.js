@@ -10,8 +10,9 @@ const config = require('../../config');
 const { all, get, run, tx } = require('../../db');
 const { ApiError } = require('../../utils/errors');
 const { uuid, nowIso, validate, parsePagination, hashBody } = require('../../utils/validate');
-const { notify, audit, maskPhone } = require('../platform/service');
+const { notify, audit, maskPhone, getSetting } = require('../platform/service');
 const math = require('./math');
+const protocol = require('./protocol');
 
 function normalizeIranPhone(raw) {
   let s = math.normalizeNumericString(raw).replace(/^\+98/, '0').replace(/^98(?=\d{10}$)/, '0');
@@ -124,14 +125,48 @@ function sumTreasuryEventsByType() {
   let returnStakeAtoms = 0n;
   let returnRewardAtoms = 0n;
   let collectFeeAtoms = 0n;
+  let issueBaseAtoms = 0n;
+  let taxAccruedAtoms = 0n;
+  let taxSettledAtoms = 0n;
   for (const r of rows) {
     const a = BigInt(r.atoms);
     if (r.event_type === 'return_base') returnBaseAtoms += a;
     else if (r.event_type === 'return_stake') returnStakeAtoms += a;
     else if (r.event_type === 'return_reward') returnRewardAtoms += a;
     else if (r.event_type === 'collect_fee') collectFeeAtoms += a;
+    else if (r.event_type === 'issue_base') issueBaseAtoms += a;
+    else if (r.event_type === 'tax_accrued') taxAccruedAtoms += a;
+    else if (r.event_type === 'tax_settled') taxSettledAtoms += a;
   }
-  return { returnBaseAtoms, returnStakeAtoms, returnRewardAtoms, collectFeeAtoms, totalEvents: rows.length };
+  return {
+    returnBaseAtoms,
+    returnStakeAtoms,
+    returnRewardAtoms,
+    collectFeeAtoms,
+    issueBaseAtoms,
+    taxAccruedAtoms,
+    taxSettledAtoms,
+    totalEvents: rows.length
+  };
+}
+
+/**
+ * Recognises the protocol tax liability inside a collected fee.
+ *
+ * The fee itself is always booked first (`collect_fee`); this adds the matching
+ * `tax_accrued` row so the tax position is never implied — it is a ledger fact.
+ * Must be called inside the same transaction as the fee it taxes.
+ */
+function recordFeeTax(userId, feeAtoms, refType, refId, note, nowStr) {
+  const taxBps = Number(getSetting('lth_protocol_tax_bps', '1000'));
+  const { taxAtoms } = protocol.splitFeeTax(feeAtoms, taxBps);
+  if (taxAtoms <= 0n) return 0n;
+  run(
+    `INSERT INTO lth_treasury_ledger (id, event_type, atoms, user_id, ref_type, ref_id, note, created_at)
+     VALUES (?, 'tax_accrued', ?, ?, ?, ?, ?, ?)`,
+    [uuid(), taxAtoms.toString(), userId, refType, refId, note, nowStr]
+  );
+  return taxAtoms;
 }
 
 function formatTreasuryHeadlineLth(atoms) {
@@ -170,7 +205,31 @@ function getTreasuryView() {
   const assetAtoms = totalSupplyAtoms >= marketAtoms ? totalSupplyAtoms - marketAtoms : 0n;
   const conservationOk = assetAtoms + marketAtoms === totalSupplyAtoms;
 
-  const { returnBaseAtoms, returnStakeAtoms, returnRewardAtoms, collectFeeAtoms, totalEvents } = sumTreasuryEventsByType();
+  const {
+    returnBaseAtoms, returnStakeAtoms, returnRewardAtoms, collectFeeAtoms,
+    issueBaseAtoms, taxAccruedAtoms, taxSettledAtoms, totalEvents
+  } = sumTreasuryEventsByType();
+  const taxBps = Number(getSetting('lth_protocol_tax_bps', '1000'));
+  const rows = protocol.treasuryRows({
+    assetAtoms,
+    marketAtoms,
+    baseAtoms: baseSum,
+    issuedAtoms: issueBaseAtoms,
+    returnedAtoms: returnBaseAtoms,
+    returnStakeAtoms,
+    returnRewardAtoms,
+    feeAtoms: collectFeeAtoms,
+    taxAccruedAtoms,
+    taxSettledAtoms,
+    priceIrr
+  });
+  const baseRow = protocol.baseFlowRow({
+    issuedAtoms: issueBaseAtoms,
+    returnedAtoms: returnBaseAtoms,
+    baseAtoms: baseSum,
+    marketAtoms,
+    priceIrr
+  });
 
   return {
     title: 'خزانه',
@@ -225,6 +284,37 @@ function getTreasuryView() {
     collected_fee_lth_display_8: math.formatAtomsDisplay8(collectFeeAtoms),
     collected_fee_lth_display_12: math.formatAtomsDisplay12(collectFeeAtoms),
     collected_fee_lth_exact: math.formatAtomsExact(collectFeeAtoms),
+
+    // 6. میزان پایه — base LTH that moved from the treasury into the market.
+    //    This is the row that explains why «دارایی» and «مقدار بازار» moved.
+    base_flow: baseRow,
+    base_issued_atoms: issueBaseAtoms.toString(),
+    base_issued_lth_display_12: math.formatAtomsDisplay12(issueBaseAtoms),
+    base_net_atoms: baseRow.net_atoms,
+    base_net_lth_display_12: baseRow.net_display_12,
+    base_net_irr_equivalent: baseRow.irr_equivalent,
+    base_opening_atoms: baseRow.opening_atoms,
+    base_opening_lth_display_12: baseRow.opening_lth_display_12,
+    base_has_opening_balance: baseRow.has_opening_balance,
+    base_unaccounted_atoms: baseRow.unaccounted_atoms,
+    base_reconciles_with_opening: baseRow.reconciles_with_opening,
+    base_wallet_lth_display_12: baseRow.base_display_12,
+
+    // 7. Tax on collected fees (fees always arrive first, then get taxed).
+    protocol_tax_bps: taxBps,
+    protocol_tax_percent: taxBps / 100,
+    tax_accrued_atoms: taxAccruedAtoms.toString(),
+    tax_accrued_lth_display_12: math.formatAtomsDisplay12(taxAccruedAtoms),
+    tax_settled_atoms: taxSettledAtoms.toString(),
+    tax_settled_lth_display_12: math.formatAtomsDisplay12(taxSettledAtoms),
+    tax_outstanding_atoms: (taxAccruedAtoms - taxSettledAtoms).toString(),
+    tax_outstanding_lth_display_12: math.formatAtomsDisplay12(taxAccruedAtoms - taxSettledAtoms),
+    tax_on_fees_irr_equivalent: math.atomsToIrrExact(taxAccruedAtoms, priceIrr),
+    net_fee_atoms: (collectFeeAtoms - taxAccruedAtoms).toString(),
+    net_fee_lth_display_12: math.formatAtomsDisplay12(collectFeeAtoms - taxAccruedAtoms),
+
+    // The whole treasury as one ordered, display-ready table.
+    rows,
 
     // Extra audit telemetry for staff
     returned_reward_lth_display_12: math.formatAtomsDisplay12(returnRewardAtoms),
@@ -988,6 +1078,17 @@ function handlePaymentOutcomeInTx(paymentId, outcome, nowStr) {
       ]
     );
 
+    // Base LTH leaves the treasury and enters the market. Without this row the
+    // «مقدار بازار» would grow while «دارایی» shrank with no accounting trail.
+    run(
+      `INSERT INTO lth_treasury_ledger (id, event_type, atoms, user_id, ref_type, ref_id, note, created_at)
+       VALUES (?, 'issue_base', ?, ?, 'lth_purchase', ?, ?, ?)`,
+      [
+        uuid(), lthAtoms.toString(), purchase.user_id, purchase.id,
+        `صدور حجم پایه از خزانه به کیف پول (خرید ${purchase.code})`, nowStr
+      ]
+    );
+
     notify(
       purchase.user_id,
       'lth_purchase_fulfilled',
@@ -1405,6 +1506,7 @@ function reviewWithdrawal(staffUser, code, input) {
            VALUES (?, 'collect_fee', ?, ?, 'sheba_withdrawal', ?, ?, ?)`,
           [uuid(), feeAtoms.toString(), row.user_id, row.id, `کارمزد تسویه فروش (${row.code})`, now]
         );
+        recordFeeTax(row.user_id, feeAtoms, 'sheba_withdrawal', row.id, `مالیات کارمزد تسویه فروش (${row.code})`, now);
       }
       notify(
         row.user_id,
@@ -1595,6 +1697,7 @@ function createAccountTransfer(sender, input) {
          VALUES (?, 'collect_fee', ?, ?, 'lth_transfer', ?, ?, ?)`,
         [uuid(), feeAtoms.toString(), sender.id, transferId, `کارمزد انتقال حساب به حساب (${code})`, now]
       );
+      recordFeeTax(sender.id, feeAtoms, 'lth_transfer', transferId, `مالیات کارمزد انتقال (${code})`, now);
     }
 
     notify(
@@ -2276,10 +2379,13 @@ function searchProtocol(staffUser, query = {}) {
       id: tl.id,
       event_type: tl.event_type,
       event_label: {
+        issue_base: 'صدور حجم پایه از خزانه به بازار',
         return_base: 'بازگشت حجم پایه به خزانه',
         return_stake: 'بازگشت استیک آزادشده به خزانه',
         return_reward: 'تسویه پاداش قابل برداشت',
-        collect_fee: 'وصول کارمزد پروتکل به خزانه'
+        collect_fee: 'وصول کارمزد پروتکل به خزانه',
+        tax_accrued: 'شناسایی مالیات روی کارمزد',
+        tax_settled: 'تسویه مالیات با مرجع'
       }[tl.event_type] || tl.event_type,
       lth_display_12: math.formatAtomsDisplay12(tl.atoms),
       lth_exact: math.formatAtomsExact(tl.atoms),
@@ -2350,12 +2456,279 @@ function inspectUserProtocol(staffUser, targetUserId) {
   };
 }
 
+
+// ---------------------------------------------------------------------------
+// Market reward projection (staff / admin analytics)
+// ---------------------------------------------------------------------------
+
+/**
+ * «میزان کل پاداش بازار» — how much reward the current market produces per
+ * interval, and what the whole supply would produce at a given split.
+ *
+ * Every number here is derived, never stored: wallets + settings in, exact
+ * BigInt arithmetic out. The optional `target_reward_lth` back-solves the market
+ * size required to produce a desired reward, which is how an operator engineers
+ * the column ("given a total reward, this is the market value it implies").
+ */
+function getMarketRewardProjection(rawQuery = {}) {
+  settleDueRewards();
+  const settings = getSettingsRow();
+  const priceIrr = BigInt(settings.price_irr);
+  const tConfig = getTreasuryConfigRow();
+
+  const { marketAtoms, baseSum, stakedSum, withdrawableSum, reservedSum, walletCount } = sumWalletCirculatingAtoms();
+  const totalSupplyAtoms = BigInt(tConfig.total_supply_atoms);
+
+  // Splits to compare: the live regulator plus whatever the operator passes in.
+  const splits = [];
+  const liveStakeBps = Number(settings.stake_bps);
+  splits.push({ stake_bps: liveStakeBps, label: `ریگلاژ فعلی (${liveStakeBps / 100}٪ / ${(10000 - liveStakeBps) / 100}٪)` });
+
+  const requestedStake = rawQuery.stake_percent !== undefined
+    ? Number(rawQuery.stake_percent)
+    : (rawQuery.stake_bps !== undefined ? Number(rawQuery.stake_bps) / 100 : null);
+  if (requestedStake !== null && Number.isFinite(requestedStake) && requestedStake >= 0 && requestedStake <= 100) {
+    const bps = Math.round(requestedStake * 100);
+    if (!splits.some((x) => x.stake_bps === bps)) {
+      splits.push({ stake_bps: bps, label: `سناریوی ${requestedStake}٪ / ${(100 - requestedStake)}٪` });
+    }
+  }
+
+  const rate = settings.reward_per_min_unit_atoms;
+  const buildScenario = (baseAtoms, stakeBps, label) => {
+    const split = protocol.projectRewards(baseAtoms, {
+      rewardPerMinUnitAtoms: rate,
+      stakeBps,
+      withdrawableBps: 10000 - stakeBps
+    });
+    return {
+      label,
+      stake_bps: stakeBps,
+      stake_percent: stakeBps / 100,
+      withdrawable_bps: 10000 - stakeBps,
+      withdrawable_percent: (10000 - stakeBps) / 100,
+      base_atoms: BigInt(baseAtoms).toString(),
+      base_lth_display_12: math.formatAtomsDisplay12(baseAtoms),
+      total_reward_atoms: split.total_atoms.toString(),
+      total_reward_lth_display_12: math.formatAtomsDisplay12(split.total_atoms),
+      total_reward_lth_exact: math.formatAtomsCompact(split.total_atoms) || '0',
+      total_reward_irr_exact: math.atomsToIrrExact(split.total_atoms, priceIrr),
+      staked_reward_atoms: split.staked_atoms.toString(),
+      staked_reward_lth_display_12: math.formatAtomsDisplay12(split.staked_atoms),
+      staked_reward_irr_exact: math.atomsToIrrExact(split.staked_atoms, priceIrr),
+      withdrawable_reward_atoms: split.withdrawable_atoms.toString(),
+      withdrawable_reward_lth_display_12: math.formatAtomsDisplay12(split.withdrawable_atoms),
+      withdrawable_reward_irr_exact: math.atomsToIrrExact(split.withdrawable_atoms, priceIrr)
+    };
+  };
+
+  // Live market under each split, plus the full-supply ceiling.
+  const marketScenarios = splits.map((sp) =>
+    buildScenario(marketAtoms, sp.stake_bps, `${sp.label} — بازار فعلی`)
+  );
+  const supplyScenarios = splits.map((sp) =>
+    buildScenario(totalSupplyAtoms, sp.stake_bps, `${sp.label} — کل عرضه`)
+  );
+
+  // Back-solve: a desired reward implies a market size.
+  let target = null;
+  const rawTarget = rawQuery.target_reward_lth;
+  if (rawTarget !== undefined && rawTarget !== null && String(rawTarget).trim() !== '') {
+    let targetAtoms = 0n;
+    try {
+      targetAtoms = math.parseLthToAtoms(String(rawTarget), { allowZero: false });
+    } catch (err) {
+      throw ApiError.validation(err.message, [{ field: 'target_reward_lth', message: err.message }]);
+    }
+    const requiredMarket = protocol.marketForReward(targetAtoms, rate);
+    const achievable = requiredMarket <= totalSupplyAtoms;
+    target = {
+      requested_reward_atoms: targetAtoms.toString(),
+      requested_reward_lth_exact: math.formatAtomsCompact(targetAtoms) || '0',
+      required_market_atoms: requiredMarket.toString(),
+      required_market_lth_display_12: math.formatAtomsDisplay12(requiredMarket),
+      required_market_irr_equivalent: math.atomsToIrrExact(requiredMarket, priceIrr),
+      market_share_of_supply_percent: totalSupplyAtoms > 0n
+        ? Number((requiredMarket * 10000n) / totalSupplyAtoms) / 100
+        : 0,
+      achievable_within_supply: achievable,
+      note: achievable
+        ? 'این مقدار پاداش با عرضهٔ فعلی پروتکل قابل تولید است.'
+        : 'برای این مقدار پاداش، بازار بزرگ‌تر از کل عرضهٔ پروتکل لازم است.'
+    };
+  }
+
+  const taxBps = Number(getSetting('lth_protocol_tax_bps', '1000'));
+  const liveReward = marketScenarios[0];
+  const liveFeeOnReward = protocol.splitFeeTax(BigInt(liveReward.total_reward_atoms), taxBps);
+
+  return {
+    generated_at: nowIso(),
+    formula: {
+      reward_atoms: '(market_atoms × reward_per_min_unit_atoms) ÷ 10^8',
+      split: '(total × stake_bps) ÷ 10000  ⇒  withdrawable = total − staked',
+      back_solve: '(target_reward_atoms × 10^8) ÷ reward_per_min_unit_atoms',
+      tax: '(fee_atoms × tax_bps) ÷ 10000',
+      note: 'همهٔ محاسبات با BigInt و بدون خطای ممیز شناور انجام می‌شود.'
+    },
+    unit_price_irr: priceIrr.toString(),
+    reward_per_min_unit_atoms: rate,
+    reward_per_min_unit_lth: math.formatAtomsCompact(rate),
+    reward_interval_sec: settings.reward_interval_sec,
+    protocol_tax_bps: taxBps,
+    protocol_tax_percent: taxBps / 100,
+    supply: {
+      total_supply_atoms: totalSupplyAtoms.toString(),
+      total_supply_lth_display_12: math.formatAtomsDisplay12(totalSupplyAtoms),
+      total_supply_lth_headline: formatTreasuryHeadlineLth(totalSupplyAtoms)
+    },
+    market: {
+      wallet_count: walletCount,
+      market_atoms: marketAtoms.toString(),
+      market_lth_display_12: math.formatAtomsDisplay12(marketAtoms),
+      market_lth_headline: formatTreasuryHeadlineLth(marketAtoms),
+      market_irr_equivalent: math.atomsToIrrExact(marketAtoms, priceIrr),
+      base_atoms: baseSum.toString(),
+      base_lth_display_12: math.formatAtomsDisplay12(baseSum),
+      staked_atoms: stakedSum.toString(),
+      staked_lth_display_12: math.formatAtomsDisplay12(stakedSum),
+      withdrawable_atoms: withdrawableSum.toString(),
+      withdrawable_lth_display_12: math.formatAtomsDisplay12(withdrawableSum),
+      reserved_atoms: reservedSum.toString(),
+      reserved_lth_display_12: math.formatAtomsDisplay12(reservedSum),
+      share_of_supply_percent: totalSupplyAtoms > 0n
+        ? Number((marketAtoms * 10000n) / totalSupplyAtoms) / 100
+        : 0
+    },
+    live_market_reward: liveReward,
+    scenarios: {
+      live_market: marketScenarios,
+      full_supply: supplyScenarios
+    },
+    // Engineering column: what the live reward is worth, and what tax it carries.
+    reward_value: {
+      reward_atoms: liveReward.total_reward_atoms,
+      reward_irr_exact: liveReward.total_reward_irr_exact,
+      reward_tax_atoms: liveFeeOnReward.taxAtoms.toString(),
+      reward_tax_lth_display_12: math.formatAtomsDisplay12(liveFeeOnReward.taxAtoms),
+      reward_tax_irr_exact: math.atomsToIrrExact(liveFeeOnReward.taxAtoms, priceIrr),
+      reward_net_of_tax_atoms: liveFeeOnReward.netFeeAtoms.toString(),
+      reward_net_of_tax_lth_display_12: math.formatAtomsDisplay12(liveFeeOnReward.netFeeAtoms),
+      reward_net_of_tax_irr_exact: math.atomsToIrrExact(liveFeeOnReward.netFeeAtoms, priceIrr)
+    },
+    target_engineering: target,
+    projection_days: 30
+  };
+}
+
+/**
+ * Records that accrued tax was actually paid to the authority.
+ * Staff-only, audited, and refused when there is nothing to settle — the
+ * liability must never be reduced below what was really paid.
+ */
+function settleProtocolTax(adminUser, input) {
+  if (!['admin', 'finance'].includes(adminUser.role)) throw ApiError.forbidden();
+  const data = validate(input)
+    .string('lth_amount', { min: 1, max: 40 })
+    .string('reference', { min: 3, max: 120 })
+    .string('reason', { min: 3, max: 300 })
+    .done();
+
+  let atoms = 0n;
+  try {
+    atoms = math.parseLthToAtoms(data.lth_amount, { allowZero: false });
+  } catch (err) {
+    throw ApiError.validation(err.message, [{ field: 'lth_amount', message: err.message }]);
+  }
+
+  return tx(() => {
+    const { taxAccruedAtoms, taxSettledAtoms } = sumTreasuryEventsByType();
+    const outstanding = taxAccruedAtoms - taxSettledAtoms;
+    if (outstanding <= 0n) {
+      throw ApiError.invalidState('ماندهٔ مالیاتی برای تسویه وجود ندارد؛ ابتدا باید کارمزدی وصول شود.');
+    }
+    if (atoms > outstanding) {
+      throw ApiError.invalidState(
+        `مبلغ تسویه از ماندهٔ مالیات (${math.formatAtomsDisplay12(outstanding)} LTH) بیشتر است.`
+      );
+    }
+
+    const now = nowIso();
+    const id = uuid();
+    run(
+      `INSERT INTO lth_treasury_ledger (id, event_type, atoms, user_id, ref_type, ref_id, note, created_at)
+       VALUES (?, 'tax_settled', ?, ?, 'tax_settlement', ?, ?, ?)`,
+      [id, atoms.toString(), adminUser.id, id, `تسویه مالیات — مرجع ${data.reference} — ${data.reason}`, now]
+    );
+    audit(adminUser.id, adminUser.role, 'lth.tax.settle', 'tax_settlement', id, {
+      lth_exact: math.formatAtomsCompact(atoms) || '0',
+      reference: data.reference,
+      reason: data.reason,
+      outstanding_before: math.formatAtomsCompact(outstanding) || '0',
+      outstanding_after: math.formatAtomsCompact(outstanding - atoms) || '0'
+    });
+
+    return {
+      settlement: {
+        id,
+        lth_exact: math.formatAtomsCompact(atoms) || '0',
+        lth_display_12: math.formatAtomsDisplay12(atoms),
+        reference: data.reference,
+        settled_at: now
+      },
+      tax: {
+        accrued_atoms: taxAccruedAtoms.toString(),
+        settled_atoms: (taxSettledAtoms + atoms).toString(),
+        outstanding_atoms: (outstanding - atoms).toString(),
+        outstanding_lth_display_12: math.formatAtomsDisplay12(outstanding - atoms)
+      },
+      treasury: getTreasuryView()
+    };
+  });
+}
+
+/** Updates the protocol tax rate (bps) with an audit trail. */
+function updateProtocolTax(adminUser, input) {
+  if (adminUser.role !== 'admin') throw ApiError.forbidden();
+  const data = validate(input)
+    .string('reason', { min: 3, max: 300 })
+    .done();
+  const rawBps = input.tax_percent !== undefined ? Number(input.tax_percent) * 100 : Number(input.tax_bps);
+  if (!Number.isFinite(rawBps) || !Number.isInteger(rawBps) || rawBps < 0 || rawBps > 10000) {
+    throw ApiError.validation('درصد مالیات پروتکل باید بین ۰ تا ۱۰۰ باشد.', [
+      { field: 'tax_percent', message: 'مقدار نامعتبر است.' }
+    ]);
+  }
+  const now = nowIso();
+  const before = getSetting('lth_protocol_tax_bps', '1000');
+  tx(() => {
+    run(
+      "INSERT INTO settings (key, value) VALUES ('lth_protocol_tax_bps', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      [String(rawBps)]
+    );
+    audit(adminUser.id, adminUser.role, 'lth.tax.rate_update', 'settings', 'lth_protocol_tax_bps', {
+      reason: data.reason,
+      before_bps: Number(before),
+      after_bps: rawBps
+    });
+  });
+  return {
+    protocol_tax_bps: rawBps,
+    protocol_tax_percent: rawBps / 100,
+    updated_at: now,
+    treasury: getTreasuryView()
+  };
+}
+
 module.exports = {
   SERVER_INSTANCE_ID,
   ensureDefaultLogo,
   getSettingsRow,
   getTreasuryConfigRow,
   getTreasuryView,
+  getMarketRewardProjection,
+  settleProtocolTax,
+  updateProtocolTax,
   getPublicConfig,
   calculateEndpoint,
   ensureWalletInTx,

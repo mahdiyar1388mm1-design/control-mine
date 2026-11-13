@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { Layout } from './components/Layout';
+import { Seo } from './components/Seo';
 import { HomePage } from './pages/HomePage';
 import { ProductDetailPage, ShopPage } from './pages/ShopPage';
 import { CartCheckoutPage } from './pages/CartCheckoutPage';
@@ -60,6 +61,7 @@ export default function App() {
       <BrowserRouter>
         <AuthProvider>
           <Layout>
+            <Seo />
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/wallet" element={<LthWalletPage />} />

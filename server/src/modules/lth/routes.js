@@ -115,6 +115,26 @@ router.get('/admin/lth/users/:userId/inspect', requireRole('admin', 'finance'), 
 
 // ---------- Admin Only: LTH Regulator, Treasury Cap/Fees, Logo Upload & Manual Settlement Tick ----------
 
+// ---------- Admin/Finance: reward projection, protocol tax & treasury rows ----------
+
+router.get('/admin/lth/projection', requireRole('admin', 'finance'), (req, res, next) => {
+  try {
+    res.json(lth.getMarketRewardProjection(req.query || {}));
+  } catch (err) { next(err); }
+});
+
+router.post('/admin/lth/tax/settle', requireRole('admin', 'finance'), (req, res, next) => {
+  try {
+    res.status(201).json(lth.settleProtocolTax(req.user, req.body || {}));
+  } catch (err) { next(err); }
+});
+
+router.patch('/admin/lth/tax', requireRole('admin'), (req, res, next) => {
+  try {
+    res.json(lth.updateProtocolTax(req.user, req.body || {}));
+  } catch (err) { next(err); }
+});
+
 router.patch('/admin/lth/settings', requireRole('admin'), (req, res, next) => {
   try {
     res.json(lth.updateSettings(req.user, req.body || {}));

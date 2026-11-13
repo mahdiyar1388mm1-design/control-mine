@@ -5,6 +5,7 @@ import { ConfirmDialog, ErrorState, FieldErrorsList, LoadingState, StatusBadge }
 import { AdminLthPanel } from './AdminLthPanel';
 import { AdminCatalogPanel } from './AdminCatalogPanel';
 import { BrandsPanel } from './admin/BrandsPanel';
+import { Icon } from '../../components/Icon';
 
 export function AdminManagementPanel() {
   const [tab, setTab] = useState('lth'); // lth | catalog | brands | users | settings | audit
@@ -117,12 +118,12 @@ export function AdminManagementPanel() {
   return (
     <div>
       <div className="tabs">
-        <button type="button" className={`tab-btn ${tab === 'lth' ? 'active' : ''}`} onClick={() => setTab('lth')}>🪙 موتور LTH، ریگلاژ استیک و لوگو</button>
-        <button type="button" className={`tab-btn ${tab === 'catalog' ? 'active' : ''}`} onClick={() => setTab('catalog')}>🛍️ مدیریت کالاها و SKU</button>
-        <button type="button" className={`tab-btn ${tab === 'brands' ? 'active' : ''}`} onClick={() => setTab('brands')}>🏷️ برندها و لوگو</button>
-        <button type="button" className={`tab-btn ${tab === 'users' ? 'active' : ''}`} onClick={() => setTab('users')}>👥 کاربران و نقش‌ها</button>
-        <button type="button" className={`tab-btn ${tab === 'settings' ? 'active' : ''}`} onClick={() => setTab('settings')}>⚙️ تنظیمات ارسال</button>
-        <button type="button" className={`tab-btn ${tab === 'audit' ? 'active' : ''}`} onClick={() => setTab('audit')}>🛡️ سابقهٔ ممیزی (Audit Log)</button>
+        <button type="button" className={`tab-btn ${tab === 'lth' ? 'active' : ''}`} onClick={() => setTab('lth')}><Icon name="coin" size={16} /> موتور LTH، ریگلاژ استیک و لوگو</button>
+        <button type="button" className={`tab-btn ${tab === 'catalog' ? 'active' : ''}`} onClick={() => setTab('catalog')}><Icon name="bag" size={15} /> مدیریت کالاها و SKU</button>
+        <button type="button" className={`tab-btn ${tab === 'brands' ? 'active' : ''}`} onClick={() => setTab('brands')}><Icon name="tagIcon" size={15} /> برندها و لوگو</button>
+        <button type="button" className={`tab-btn ${tab === 'users' ? 'active' : ''}`} onClick={() => setTab('users')}><Icon name="usersGroup" size={16} /> کاربران و نقش‌ها</button>
+        <button type="button" className={`tab-btn ${tab === 'settings' ? 'active' : ''}`} onClick={() => setTab('settings')}><Icon name="settings" size={15} /> تنظیمات ارسال</button>
+        <button type="button" className={`tab-btn ${tab === 'audit' ? 'active' : ''}`} onClick={() => setTab('audit')}><Icon name="shield" size={15} /> سابقهٔ ممیزی (Audit Log)</button>
       </div>
 
       {tab === 'lth' && <AdminLthPanel />}
@@ -131,10 +132,10 @@ export function AdminManagementPanel() {
 
       {tab !== 'lth' && tab !== 'catalog' && tab !== 'brands' && (
         <>
-          {msg && <div className="alert-inline ok">✓ {msg}</div>}
+          {msg && <div className="alert-inline ok"><Icon name="check" size={14} /> {msg}</div>}
           {opErr && (
             <>
-              <div className="alert-inline error">⚠️ {opErr.message}</div>
+              <div className="alert-inline error"><Icon name="alert" size={14} /> {opErr.message}</div>
               <FieldErrorsList details={opErr.details} />
             </>
           )}
