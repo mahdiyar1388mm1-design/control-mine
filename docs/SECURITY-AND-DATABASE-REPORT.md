@@ -334,3 +334,86 @@ SVG به‌صورت عمدی رد می‌شود (بردار شناخته‌شد�
 | آپلود فایل متنی با نام `.png` | ✅ `400` و ردیف برند دست‌نخورده |
 | نمایش لوگو در فهرست کالا و صفحهٔ محصول | ✅ `brand_logo_path` و `brand.logo_path` |
 | حذف لوگو / حذف برند | ✅ فایل هم از دیسک پاک شد |
+
+---
+
+# گزارش بازبینی امنیت دیتابیس — ۲۰۲۶-۱۱-۱۳ (schema 012)
+
+بازبینی روی **دیتابیس در حال اجرا** انجام شد، نه فقط روی کد. خلاصه: هیچ آسیب‌پذیری
+«باز» از نوع تزریق SQL یا دسترسی عمومی به داده پیدا نشد؛ سه مورد سخت‌سازی و یک
+نقص واقعی در بارگذاری تنظیمات پیدا و رفع شد.
+
+## ۱) کاری که واقعاً انجام شد (خلاصهٔ اجرایی)
+
+| موضوع | یافته | اقدام |
+|---|---|---|
+| تزریق SQL | همهٔ کوئری‌ها پارامتری‌اند (`?`). تنها دو مورد درهم‌سازی رشته، ثابتِ کد است (`SELECT_BRAND` در `catalog/brands.js`) — هیچ ورودی کاربر در آن نیست. | تأیید شد، تغییری لازم نبود |
+| یکپارچگی فایل دیتابیس | `PRAGMA integrity_check` = `ok`، `foreign_key_check` = ۰ تخلف | تأیید شد |
+| رمز عبور | `scrypt` با N=32768 و مقایسهٔ `timingSafeEqual`؛ ۶ حساب دمو با هش قدیمی (N=16384) که در اولین ورود/تغییر رمز خودکار به N=32768 ارتقا می‌یابد | تأیید شد (مسیر `needsRehash` موجود است) |
+| نشست‌ها | توکن دسترسی در کوکی `HttpOnly` + CSRF جدا؛ توکن تازه‌سازی فقط به‌صورت **هش SHA-256** ذخیره می‌شود | تأیید شد |
+| OTP | فقط `code_hash` ذخیره می‌شود، نه کد خام؛ حداکثر ۵ تلاش؛ مقایسهٔ خطای عمومی | تأیید شد |
+| زنجیرهٔ ممیزی | `entry_hash`/`prev_hash` زنجیره‌ای و تأییدشده در بوت | تأیید شد |
+| **تنظیمات در عمل خوانده نمی‌شد** | **`dotenv` در پروژه نبود؛ فایل `.env` مستندشده هیچ‌گاه خوانده نمی‌شد** و هر `CM_*` باید دستی export می‌شد | **رفع شد:** `server/src/utils/loadEnv.js` + فراخوانی در `index.js`، `migrate.js`، `seed.js`، `backup.js` (متغیر شل همیشه اولویت دارد) |
+| **مجوز فایل دیتابیس** | `central-mine.db` و `-wal` با مجوز `0644` (خواندنی برای همهٔ کاربران سرور) | **رفع شد:** در بوت به `0600` تنظیم می‌شود؛ پوشهٔ `storage` و `backups` به `0700` |
+| **OTP سندباکس در تولید** | اگر کسی `CM_OTP_SANDBOX` را خاموش نمی‌کرد، کد ورود در پاسخ API برمی‌گشت | **رفع شد:** در `NODE_ENV=production` سرور با این تنظیم بالا نمی‌آید |
+| آمادگی استقرار | راهی برای HEALTH CHECK سخت‌گیرانه نبود | `GET /ready` اضافه شد (DB + اسکیما + شمارش فایل‌های مهاجرت) |
+| بررسی پیش از تحویل | — | `npm run preflight` (۰ مانع / ۸ هشدار در محیط توسعه؛ در تولید بدون کلید، exit 1 می‌دهد) |
+
+## ۲) وضعیت امنیتی زنده (مرکز امنیت خود پروژه)
+
+`GET /api/v1/admin/console/security/posture` در محیط **توسعه**:
+
+```
+score = 64   scope = development   checks = 9   failing = 6
+  secret            low        کلید توسعهٔ محلی پایدار
+  prod_mode         low        NODE_ENV=development
+  secure_cookies    low        کوکی Secure خاموش (بدون TLS)
+  otp_sandbox       low        کد OTP در پاسخ API
+  maintenance_token low        CM_MAINTENANCE_TOKEN خالی
+  mfa_privileged    critical   ۲ از ۲ حساب مدیریتی بدون ورود دومرحله‌ای
+```
+
+**تنها مورد `critical` که در تولید هم باقی می‌ماند: ورود دومرحله‌ای مدیران.**
+پیش از تحویل، برای همهٔ حساب‌های `admin` فعالش کنید (مسیر: حساب کاربری → امنیت →
+ورود دومرحله‌ای، یا `POST /admin/console/security/mfa/:userId/reset` برای راه‌اندازی
+مجدد). موارد `low` با `NODE_ENV=production` + TLS + `.env` کامل خودبه‌خود رفع می‌شوند.
+
+## ۳) هدرهای امنیتی (اندازه‌گیری‌شده روی پاسخ زنده)
+
+```
+Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none';
+  script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:;
+  connect-src 'self'; form-action 'self'; frame-ancestors 'self' https: http:; ...
+X-Content-Type-Options: nosniff
+X-Frame-Options: SAMEORIGIN
+Referrer-Policy: strict-origin-when-cross-origin
+Permissions-Policy: accelerometer=(), camera=(), ...
+```
+
+نکته: `frame-ancestors` و `X-Frame-Options` با `CM_DENY_IFRAME` کنترل می‌شوند.
+در تولید `CM_DENY_IFRAME=1` بگذارید (پیش‌نمایش Arena به مقدار ۰ نیاز دارد).
+
+## ۴) بررسی دسترسی بدون احراز هویت
+
+```
+GET /api/v1/admin/lth/reconciliation   401
+GET /api/v1/admin/users                401
+GET /api/v1/orders                     401
+POST /api/v1/maintenance/housekeeping  403 (بدون توکن)
+```
+
+هیچ مسیر مدیریتی یا دادهٔ کاربری بدون توکن پاسخ نمی‌دهد.
+
+## ۵) ریسک‌های باقی‌مانده که باید آگاهانه پذیرفته شوند
+
+1. **SQLite تک‌فایلی** — برای این مقیاس مناسب است، اما پشتیبان‌گیری و بازیابی مسئولیت
+   شماست (بخش ۵.۸ راهنما). مهاجرت به PostgreSQL فقط روی شبکهٔ خصوصی.
+2. **sandbox درگاه پرداخت و پیامک** — `integrations` در `/health` مقدار
+   `real_connected: false` می‌دهد. تا اتصال درگاه واقعی، پرداخت‌ها آزمایشی‌اند.
+3. **`trusted_schema = ON`** — برای اینکه view/triggerهای قدیمی زیر planner سخت‌گیر
+   کار کنند روشن است؛ ریسک آن فقط با مهاجرت مخرب در دیتابیس معنا دارد.
+4. **`secure_delete` خاموش است** — ردیف‌های حذف‌شده تا `VACUUM` در فایل باقی می‌مانند.
+   برای فعال‌سازی: `CM_SECURE_DELETE=1` (در `db/index.js` خوانده می‌شود) — کمی کندتر
+   می‌شود ولی صفحات آزاد‌شده با صفر بازنویسی می‌شوند.
+5. **حساب‌های دمو با رمز عمومی** — `npm run seed` روی تولید اجرا نشود؛ `preflight`
+   این را هشدار می‌دهد.

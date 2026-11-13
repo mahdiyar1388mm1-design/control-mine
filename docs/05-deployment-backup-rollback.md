@@ -84,3 +84,235 @@ console.log(restoreEncryptedBackup('./path/to/backup.db.enc', '/tmp/drill-restor
    و در صورتی که تغییر دادهٔ غیرقابل‌برگشت رخ داده باشد، فایل دیتابیس را از آخرین نسخهٔ پشتیبانِ پیش از انتشار (`restoreEncryptedBackup`) بازیابی کنید.
 3. کد را روی تگ پایدار قبلی (`git checkout <previous-tag>`) برگردانید، `npm run build` را اجرا کنید و سرویس را بالا بیاورید.
 4. مجدداً `/health` و مسیرهای اصلی خرید و ثبت خدمت را بررسی کنید.
+
+---
+
+# ۵. «APIها را کجا بگذارم؟» — نقشهٔ کامل استقرار
+
+## ۵.۱. پاسخ کوتاه
+
+در این پروژه **API جای جداگانه‌ای ندارد و سرور جداگانه‌ای لازم ندارد**:
+یک پردازهٔ Node هم `/api/v1/*` را سرو می‌کند و هم فایل‌های ساخته‌شدهٔ فرانت‌اند
+(`client/dist`) را. یعنی روی سرور فقط **پورت ۳۰۰۰** را با یک پردازه باز می‌کنید و
+Nginx/Caddy در جلوی آن، دامنهٔ عمومی را به همان پورت می‌رساند.
+
+```
+اینترنت ──▶ Nginx/Caddy  (443, TLS)  ──▶  127.0.0.1:3000
+                                            ├── /api/v1/*  → API (Express)
+                                            ├── /uploads/* → فایل‌های عمومی (لوگو، عکس کالا)
+                                            ├── /sitemap.xml, /robots.txt
+                                            └── /*          → SPA (client/dist)
+```
+
+نکتهٔ کلیدی: در فرانت‌اند **هیچ آدرس API هاردکد نشده**؛ همهٔ درخواست‌ها نسبی‌اند
+(`/api/v1/...` در `client/src/lib/api.js`). پس با هر دامنه‌ای کار می‌کند و لازم نیست
+`VITE_API_URL` بسازید. فقط دامنه را در `CM_PUBLIC_BASE_URL` بگذارید (برای sitemap و
+URL کانونیکال).
+
+## ۵.۲. سه حالت استقرار
+
+| حالت | کجا API می‌نشیند | مناسب برای |
+|---|---|---|
+| **الف) تک‌سرور (توصیه‌شده)** | همان پردازه، پورت `3000`، پشت Nginx/Caddy | همهٔ کسب‌وکارهای این پروژه |
+| **ب) زیرمسیر** (`/app`) | همان پردازه روی پورت `3000`، Nginx مسیر `/app/` را پروکسی می‌کند | وقتی روی دامنه‌ای موجود جا می‌خواهید |
+| **ج) تفکیک API و UI** | API روی `api.example.com` و UI روی `www.example.com` | فقط اگر CDN/چند-تیمی لازم است — **نیاز به تغییر کد دارد** (CORS و آدرس مطلق API) |
+
+حالت (ج) را بدون نیاز شروع نکنید: کوکی‌های نشست `SameSite` دارند و CSP روی
+`connect-src 'self'` تنظیم شده؛ تفکیک دامنه یعنی باز کردن CORS و تضعیف همین سیاست.
+
+## ۵.۳. گام‌به‌گام روی سرور لینوکسی
+
+```bash
+# ۰) پیش‌نیاز: Node.js 22.5+ (ماژول توکار node:sqlite)
+node -v
+
+# ۱) گرفتن کد و نصب وابستگی‌ها
+git clone <repo> /opt/central-mine && cd /opt/central-mine
+npm run install:all
+
+# ۲) ساخت فایل تنظیمات واقعی (سرور خودش .env را می‌خواند)
+cp .env.example server/.env
+node -e "console.log('CM_SECRET='+require('crypto').randomBytes(48).toString('hex'))"
+node -e "console.log('CM_BACKUP_KEY='+require('crypto').randomBytes(32).toString('hex'))"
+$EDITOR server/.env      # سه کلید بالا + CM_PUBLIC_BASE_URL + NODE_ENV=production + CM_OTP_SANDBOX=0
+chmod 600 server/.env    # فقط کاربر سرویس بخواند
+
+# ۳) ساخت فرانت‌اند (خروجی در client/dist — همان چیزی که سرور سرو می‌کند)
+npm run build
+
+# ۴) مهاجرت دیتابیس — و **بدون seed** روی تولید
+npm run migrate
+#    npm run seed  ← فقط برای دمو/آزمایش. روی دادهٔ واقعی اجرا نکنید.
+
+# ۵) اجرا
+npm start                # اسکریپت scripts/start-server.sh: نصب/بیلد/مهاجرت/اجرا
+```
+
+**دربارهٔ seed:** `seed` دادهٔ نمایشی می‌سازد (کاربران دمو با رمز `Cm@Test1405!`،
+محصولات نمونه) و اگر مدیر از قبل وجود داشته باشد رد می‌شود. روی تولید اجرا نکنید؛
+اولین مدیر را با ثبت‌نام عادی بسازید و بعد نقشش را در دیتابیس ارتقا دهید یا از
+مسیر مدیریت کاربران استفاده کنید.
+
+## ۵.۴. سرویس systemd
+
+```ini
+# /etc/systemd/system/central-mine.service
+[Unit]
+Description=CENTRAL MINE API + SPA
+After=network.target
+
+[Service]
+Type=simple
+User=centralmine
+WorkingDirectory=/opt/central-mine
+# تنظیمات از server/.env خوانده می‌شود؛ نیازی به Environment= نیست.
+ExecStart=/usr/bin/node server/src/index.js
+Restart=always
+RestartSec=5
+# سخت‌سازی
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/central-mine/server/data /opt/central-mine/server/storage
+# محدودیت منابع
+LimitNOFILE=4096
+MemoryMax=1G
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload && sudo systemctl enable --now central-mine
+sudo systemctl status central-mine
+journalctl -u central-mine -f
+```
+
+## ۵.۵. Nginx کامل (TLS + پروکسی + محدودیت آپلود)
+
+```nginx
+server {
+    listen 80;
+    server_name example.ir www.example.ir;
+    return 301 https://example.ir$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name example.ir;
+
+    ssl_certificate     /etc/letsencrypt/live/example.ir/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/example.ir/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    client_max_body_size 12m;   # کمی بیشتر از CM_MAX_UPLOAD_BYTES (۱۰MB)
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+
+    # فایل‌های هش‌دار Vite: کش طولانی
+    location /assets/ {
+        proxy_pass http://127.0.0.1:3000;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+    }
+}
+```
+
+`CM_TRUST_PROXY=true` را نگه دارید تا Express یک hop پروکسی را باور کند
+(برای IP درست در rate-limit و کوکی Secure).
+
+## ۵.۶. Docker (اختیاری)
+
+```dockerfile
+FROM node:22-slim
+WORKDIR /app
+COPY package*.json ./
+COPY server/package*.json server/
+COPY client/package*.json client/
+RUN npm run install:all
+COPY . .
+RUN npm run build
+ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000
+# CM_SECRET و CM_BACKUP_KEY را در زمان اجرا بدهید (نه در ایمیج)
+EXPOSE 3000
+CMD ["node", "server/src/index.js"]
+```
+
+```bash
+docker build -t central-mine .
+docker run -d --name central-mine -p 127.0.0.1:3000:3000 \
+  -v cm-data:/app/server/data -v cm-storage:/app/server/storage \
+  --env-file ./server/.env central-mine
+```
+
+دو volume بالا **اجباری** است: دیتابیس (`server/data`) و فایل‌های آپلودی
+(`server/storage`). بدون آن‌ها با هر ری‌استارت داده از دست می‌رود.
+
+## ۵.۷. بررسی سلامت بعد از استقرار
+
+| مسیر | معنا |
+|---|---|
+| `GET /health` | سلامت کلی + نسخهٔ اسکیما + `integrations` (درگاه/پیامک: sandbox یا live) |
+| `GET /ready` | **مخصوص load balancer**: فقط وقتی `200` می‌دهد که DB باز، اسکیما اعمال‌شده و همهٔ فایل‌های مهاجرت ثبت شده باشند (وگرنه `503`) |
+| `GET /api/v1/admin/console/security/posture` | نمرهٔ امنیتی و چک‌لیست (نیازمند ورود مدیر) |
+| `GET /api/v1/admin/console/security/database` | شمارش جدول‌ها/ایندکس‌ها/تریگرها، integrity و FK |
+
+```bash
+curl -fsS https://example.ir/ready   | jq .
+curl -fsS https://example.ir/health  | jq '{status, schema_version, integrations}'
+```
+
+## ۵.۸. پشتیبان‌گیری (روی همان مسیر داده)
+
+```bash
+# پشتیبان رمزنگاری‌شده (AES-256-GCM با CM_BACKUP_KEY)
+npm run backup
+# تمرین بازیابی روی یک نسخهٔ جدا — ماهی یک‌بار
+npm --prefix server run backup -- --verify
+```
+
+قاعدهٔ طلایی: **کلید `CM_BACKUP_KEY` را جدا از فایل‌های پشتیبان نگه دارید**؛
+بدون آن، فایل `.enc` قابل بازیابی نیست.
+
+## ۵.۹. اگر روی زیرمسیر می‌خواهید (`https://example.ir/app/`)
+
+Nginx:
+
+```nginx
+location /app/ {
+    proxy_pass http://127.0.0.1:3000/;   # اسلش انتهایی مهم است
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+و در `client/vite.config.js` مقدار `base: '/app/'` را اضافه کنید، سپس
+`CM_PUBLIC_BASE_URL=https://example.ir/app` و دوباره `npm run build`.
+(بدون `base`، فایل‌های `/assets/*` از ریشه درخواست می‌شوند و ۴۰۴ می‌گیرید.)
+
+## ۵.۱۰. چک‌لیست «قبل از تحویل به مشتری»
+
+- [ ] `NODE_ENV=production`
+- [ ] `CM_SECRET` تصادفی ۹۶ نویسه‌ای (نه مقدار نمونه)
+- [ ] `CM_BACKUP_KEY` تنظیم‌شده و **بیرون از سرور** هم نگه‌داری می‌شود
+- [ ] `CM_OTP_SANDBOX=0` (با مقدار ۱ سرور در تولید عمداً بالا نمی‌آید)
+- [ ] `CM_PUBLIC_BASE_URL` روی دامنهٔ واقعی
+- [ ] `CM_DENY_IFRAME=1` (پیش‌نمایش Arena به ۰ نیاز دارد، تولید نه)
+- [ ] `CM_MAINTENANCE_TOKEN` تنظیم یا عمداً خالی
+- [ ] دادهٔ دمو پاک/جایگزین شده (کاربران `091200000xx` با رمز عمومی!)
+- [ ] `npm run migrate` اجرا شده و `GET /ready` عدد `200` می‌دهد
+- [ ] HTTPS و ریدایرکت ۸۰→۴۴۳ فعال
+- [ ] پشتیبان اولیه گرفته و **یک بار بازیابی تمرین شده**
+- [ ] ورود دومرحله‌ای برای حساب‌های مدیر فعال (مرکز امنیت `critical` ندهد)
+- [ ] `server/.env` و `server/data` و `server/storage` مالک/مجوز درست (`600`/`700`)

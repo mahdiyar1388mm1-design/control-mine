@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  // Set VITE_BASE_PATH=/app/ to serve the SPA from a sub-path behind a proxy.
+  base: process.env.VITE_BASE_PATH || '/',
   server: {
     host: '0.0.0.0',
     port: 5173,

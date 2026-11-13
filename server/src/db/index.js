@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('fs');
 const { DatabaseSync } = require('node:sqlite');
 const config = require('../config');
 
@@ -80,12 +81,33 @@ function getDb() {
     db.exec('PRAGMA trusted_schema = ON');
     // Unsigned 64-bit counters without silent precision loss.
     db.exec('PRAGMA cell_size_check = ON');
+    // Optional: overwrite deleted pages so removed KYC/audit rows cannot be
+    // recovered from free space. Off by default (costs write throughput).
+    if (process.env.CM_SECURE_DELETE === '1') db.exec('PRAGMA secure_delete = ON');
     db.exec('PRAGMA temp_store = MEMORY');
     db.exec('PRAGMA cache_size = -20000');
     // Query-planner statistics; refreshed by housekeeping / optimize.
     try { db.exec('PRAGMA optimize'); } catch { /* older engines */ }
+    // The database holds password hashes, session state and the audit chain:
+    // make sure only the service account can read it. Best effort — a mounted
+    // volume or a non-POSIX filesystem may refuse the chmod.
+    for (const suffix of ['', '-wal', '-shm']) tightenDataPermissions(`${config.dbPath}${suffix}`);
   }
   return db;
+}
+
+/**
+ * Restricts a path to the owner — used for the SQLite file, its WAL/SHM
+ * companions, the upload/store directories and the backups directory.
+ * Returns true when the mode is now owner-only (or already was).
+ */
+function tightenDataPermissions(target, { mode = 0o600 } = {}) {
+  try {
+    if (fs.statSync(target).mode & 0o077) fs.chmodSync(target, mode);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function all(sql, params = []) {
@@ -139,4 +161,14 @@ function close() {
   }
 }
 
-module.exports = { getDb, all, get, run, tx, close, housekeeping, integrityCheck };
+module.exports = {
+  tightenDataPermissions,
+  getDb,
+  all,
+  get,
+  run,
+  tx,
+  close,
+  housekeeping,
+  integrityCheck
+};

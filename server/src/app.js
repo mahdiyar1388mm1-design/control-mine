@@ -116,6 +116,45 @@ function createApp() {
   app.get('/health', healthHandler);
   app.get('/api/v1/health', healthHandler);
 
+  /**
+   * Readiness probe for orchestrators / load balancers.
+   * 200 only when the process can actually serve traffic: DB reachable, schema
+   * migrated, and no unapplied migration files on disk. Cheap enough to poll.
+   */
+  app.get('/ready', (req, res) => {
+    const checks = { db: false, schema: false, migrations: false };
+    let version = null;
+    try {
+      checks.db = Boolean(get('SELECT 1 AS ok') && get('SELECT 1 AS ok').ok === 1);
+    } catch { checks.db = false; }
+    try {
+      const row = get('SELECT value FROM settings WHERE key = ?', ['schema_version']);
+      version = row ? String(row.value) : null;
+    } catch { version = null; }
+    try {
+      const applied = get('SELECT COUNT(*) AS c FROM schema_migrations').c;
+      const files = fs.readdirSync(path.join(__dirname, 'db', 'migrations'))
+        .filter((f) => f.endsWith('.sql') && !f.endsWith('.down.sql')).length;
+      checks.schema = applied > 0;
+      checks.migrations = applied === files;
+      version = version || String(applied);
+    } catch {
+      checks.migrations = false;
+    }
+    const ready = checks.db && checks.schema && checks.migrations;
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(ready ? 200 : 503).json({
+      status: ready ? 'ready' : 'not-ready',
+      checks,
+      schema_version: version,
+      integrations: {
+        payment_gateway: 'sandbox',
+        sms_otp: config.otpSandbox ? 'sandbox' : 'live'
+      },
+      timestamp: new Date().toISOString()
+    });
+  });
+
   // Housekeeping is an admin/maintenance operation, never public: protected by a token.
   app.post('/api/v1/maintenance/housekeeping', (req, res, next) => {
     const token = req.header('x-maintenance-token');

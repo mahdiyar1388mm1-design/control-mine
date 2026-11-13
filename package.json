@@ -11,6 +11,9 @@
     "seed": "npm --prefix server run seed",
     "backup": "npm --prefix server run backup",
     "test": "npm --prefix client run build && npm --prefix server test",
-    "start": "bash scripts/start-server.sh"
+    "start": "bash scripts/start-server.sh",
+    "preflight": "node scripts/preflight.js",
+    "preflight:live": "node scripts/preflight.js --url \"$CM_PUBLIC_BASE_URL\"",
+    "verify": "npm test && node scripts/preflight.js"
   }
 }

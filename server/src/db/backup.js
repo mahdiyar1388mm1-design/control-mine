@@ -1,5 +1,7 @@
 'use strict';
 
+require('../utils/loadEnv').loadEnv();
+
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');

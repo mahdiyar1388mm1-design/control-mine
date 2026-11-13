@@ -1,11 +1,36 @@
 'use strict';
 
+// `.env` must be read before anything captures configuration.
+const envInfo = require('./utils/loadEnv').loadEnv();
+
 const config = require('./config');
 const { migrate } = require('./db/migrate');
 const { close, housekeeping } = require('./db');
 const { createApp } = require('./app');
 const { startRewardScheduler } = require('./modules/lth/scheduler');
 const logger = require('./utils/logger');
+
+if (envInfo.loaded) {
+  logger.info('environment file loaded', {
+    file: envInfo.loaded.replace(process.cwd(), '.'),
+    applied: envInfo.applied.length,
+    kept_from_shell: envInfo.skipped.length
+  });
+} else if (config.isProd) {
+  logger.warn('no .env file found; relying on exported environment variables only');
+}
+
+if (config.isProd && config.otpSandbox) {
+  // In production a sandbox OTP channel hands the login code to anyone who asks.
+  throw new Error(
+    'CM_OTP_SANDBOX در محیط تولید باید 0 باشد؛ وگرنه کد ورود در پاسخ API برگردانده می‌شود.'
+  );
+}
+
+const { tightenDataPermissions } = require('./db');
+
+// Private storage + backups hold KYC documents and encrypted dumps: owner-only.
+for (const dir of [config.storageDir, config.backupsDir]) tightenDataPermissions(dir, { mode: 0o700 });
 
 migrate((msg) => logger.info(msg));
 

@@ -1,5 +1,7 @@
 'use strict';
 
+require('../utils/loadEnv').loadEnv();
+
 /**
  * CENTRAL MINE — Synthetic seed data for local development & automated testing.
  * Contains ONLY freshly generated test accounts, physical equipment catalog,
