@@ -367,7 +367,8 @@ const ACCOUNT_MENU_ITEMS = [
   { key: 'shipping', to: '/account/shipping', label: 'اطلاعات ارسال', icon: 'address' },
   { key: 'orders', to: '/orders', label: 'سفارش‌ها', icon: 'bag' },
   { key: 'tickets', to: '/tickets', label: 'پشتیبانی', icon: 'headset' },
-  { key: 'notifications', to: '/account/notifications', label: 'اعلان‌ها', icon: 'bell' }
+  { key: 'notifications', to: '/account/notifications', label: 'اعلان‌ها', icon: 'bell' },
+  { key: 'security', to: '/account/security', label: 'امنیت و ورود دومرحله‌ای', icon: 'shieldCheck' }
 ];
 
 function AccountLayout({ active, title, subtitle, children }) {
@@ -420,6 +421,23 @@ function AccountLayout({ active, title, subtitle, children }) {
         {children}
       </section>
     </div>
+  );
+}
+
+/** Standalone security page: 2FA enrolment + active sessions. */
+export function AccountSecurityPage() {
+  const { user, authLoading } = useAuth();
+  if (authLoading) return <LoadingState label="در حال بارگذاری تنظیمات امنیت..." />;
+  if (!user) return <EmptyState title="وارد حساب کاربری نشده‌اید" actionLabel="ورود" actionTo="/auth?next=/account/security" />;
+  return (
+    <AccountLayout
+      active="security"
+      title="امنیت حساب"
+      subtitle="ورود دومرحله‌ای، کدهای بازیابی و نشست‌های فعال"
+    >
+      <TwoFactorCard />
+      <SessionsCard />
+    </AccountLayout>
   );
 }
 
@@ -547,6 +565,14 @@ export function AccountDashboardPage() {
             <span className="account-manage-text">
               <strong>پشتیبانی</strong>
               <span className="muted">پرونده‌ها و گفتگوهای پشتیبانی</span>
+            </span>
+            <span className="account-manage-arrow" aria-hidden="true"><Icon name="arrowLeft" size={16} /></span>
+          </Link>
+          <Link to="/account/security" className="account-manage-item">
+            <span className="account-manage-icon" aria-hidden="true"><Icon name="shieldCheck" size={20} /></span>
+            <span className="account-manage-text">
+              <strong>امنیت و ورود دومرحله‌ای</strong>
+              <span className="muted">تأیید دومرحله‌ای، کدهای بازیابی و نشست‌های فعال</span>
             </span>
             <span className="account-manage-arrow" aria-hidden="true"><Icon name="arrowLeft" size={16} /></span>
           </Link>

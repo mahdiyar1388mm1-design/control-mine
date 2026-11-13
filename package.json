@@ -14,6 +14,8 @@
     "start": "bash scripts/start-server.sh",
     "preflight": "node scripts/preflight.js",
     "preflight:live": "node scripts/preflight.js --url \"$CM_PUBLIC_BASE_URL\"",
-    "verify": "npm test && node scripts/preflight.js"
+    "verify": "npm test && node scripts/preflight.js",
+    "mfa:list": "node scripts/mfa-provision.js --list",
+    "mfa:provision": "node scripts/mfa-provision.js"
   }
 }

@@ -9,7 +9,7 @@ import { CartCheckoutPage } from './pages/CartCheckoutPage';
 import { PaymentResultPage } from './pages/PaymentResultPage';
 import { OrderDetailPage, OrdersListPage } from './pages/OrdersPage';
 import { TicketDetailPage, TicketsListPage } from './pages/SupportPage';
-import { AccountDashboardPage, AuthPage, NotificationsPage, ProfileAddressesPage } from './pages/AccountPage';
+import { AccountDashboardPage, AccountSecurityPage, AuthPage, NotificationsPage, ProfileAddressesPage } from './pages/AccountPage';
 import { LthWalletPage } from './pages/LthWalletPage';
 import { LthSmartContractPage } from './pages/LthSmartContractPage';
 import { LthCalculatorPage } from './pages/LthCalculatorPage';
@@ -82,6 +82,7 @@ export default function App() {
               <Route path="/auth" element={<AuthPage />} />
               <Route path="/account" element={<AccountDashboardPage />} />
               <Route path="/account/shipping" element={<ProfileAddressesPage />} />
+              <Route path="/account/security" element={<AccountSecurityPage />} />
               <Route path="/account/notifications" element={<NotificationsPage />} />
               <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/staff/*" element={<StaffWorkspacePage />} />

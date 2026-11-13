@@ -165,6 +165,7 @@ export const ROUTES = [
   { path: '/account', title: 'حساب کاربری | سنترال ماین', description: 'پیشخوان حساب کاربری: سفارش‌ها، نشانی‌ها، اعلان‌ها و امنیت ورود.', noindex: true },
   { path: '/account/shipping', title: 'نشانی‌های ارسال | سنترال ماین', description: 'مدیریت نشانی‌های تحویل سفارش.', noindex: true },
   { path: '/account/notifications', title: 'اعلان‌ها | سنترال ماین', description: 'اعلان‌های حساب کاربری.', noindex: true },
+  { path: '/account/security', title: 'امنیت حساب و ورود دومرحله‌ای | سنترال ماین', description: 'مدیریت تأیید دومرحله‌ای، کدهای بازیابی و نشست‌های فعال.', noindex: true },
   { path: '/notifications', title: 'اعلان‌ها | سنترال ماین', description: 'اعلان‌های حساب کاربری.', noindex: true },
   { path: '/cart', title: 'سبد خرید و تسویه | سنترال ماین', description: 'بازبینی سبد خرید، انتخاب نشانی و پرداخت امن.', noindex: true },
   { path: '/pay/result', title: 'نتیجهٔ پرداخت | سنترال ماین', description: 'وضعیت نهایی تراکنش پرداخت.', noindex: true },

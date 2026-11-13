@@ -47,6 +47,15 @@ async function api(pathname, { method = 'GET', token, body, headers = {}, rawBod
 }
 
 /** TOTP code for the *next* step window: enrollment consumes the current one. */
+/**
+ * A code from the 30-second window AFTER the one used for enrolment.
+ *
+ * This helper is a workaround kept for the "replay" assertions below: they must
+ * present a code that was genuinely already spent, and regenerating on a new
+ * window could silently pass. The normal path no longer needs it — see the
+ * regression test "enrolment code still works at the first login", which proves
+ * the current window is accepted right after enabling.
+ */
 function nextTotpCode(secret) {
   const totp = require('../src/utils/totp');
   return totp.generateCode(secret, Date.now() + totp.STEP_SECONDS * 1000);
@@ -780,4 +789,56 @@ test('security: a stale session cookie can never lock a user out (CSRF recovery 
   });
   assert.equal(write.status, 403);
   assert.match(JSON.stringify(await write.json()), /CSRF/);
+});
+
+test('security: the enrolment code still works at the very next login', async () => {
+  // Regression guard. `enable` used to store the enrolling step in last_step;
+  // because replay protection is `step > last_step`, the same 6-digit code was
+  // rejected for up to 30 seconds right after enabling — the user finished
+  // enrolment and could not log back in, burning a challenge attempt per try.
+  const totp = require('../src/utils/totp');
+  const phone = '09350009988';
+  const password = 'Enrol#Guard1405';
+
+  resetRateLimits();
+  const registered = await api('/api/v1/auth/register', {
+    method: 'POST', body: { phone, password, full_name: 'آزمون کد ثبت‌نام' }
+  });
+  assert.ok([200, 201].includes(registered.status), JSON.stringify(registered.data));
+  const session = registered.data;
+
+  const setup = await api('/api/v1/auth/mfa/setup', { method: 'POST', token: session.token });
+  assert.equal(setup.status, 200);
+
+  // The same code string is used to enable and then to log in. Nothing here
+  // touches the clock, so a regression is deterministic rather than flaky.
+  const enrolmentCode = totp.generateCode(setup.data.secret);
+  const enabled = await api('/api/v1/auth/mfa/enable', {
+    method: 'POST', token: session.token, body: { code: enrolmentCode }
+  });
+  assert.equal(enabled.status, 200, JSON.stringify(enabled.data));
+
+  const stored = get('SELECT last_step FROM user_mfa WHERE user_id = ?', [session.user.id]);
+  assert.equal(stored.last_step, null, 'enrolment must not consume a replay window');
+
+  const challengeLogin = await api('/api/v1/auth/login', {
+    method: 'POST', body: { phone, password }
+  });
+  assert.equal(challengeLogin.data.mfa_required, true);
+
+  const verified = await api('/api/v1/auth/mfa/verify', {
+    method: 'POST',
+    body: { challenge_token: challengeLogin.data.challenge_token, code: enrolmentCode }
+  });
+  assert.equal(verified.status, 200, JSON.stringify(verified.data));
+  assert.ok(verified.data.token, 'the enrolment code must authorise the first login');
+  assert.equal(verified.data.user.phone, phone);
+
+  // And *now* that step is spent: a second attempt with it must be refused.
+  const again = await api('/api/v1/auth/login', { method: 'POST', body: { phone, password } });
+  const replay = await api('/api/v1/auth/mfa/verify', {
+    method: 'POST',
+    body: { challenge_token: again.data.challenge_token, code: enrolmentCode }
+  });
+  assert.equal(replay.status, 401, 'replay protection still applies after the first login');
 });

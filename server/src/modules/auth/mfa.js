@@ -138,7 +138,15 @@ function verifyChallenge({ challenge_token: challengeToken, code, recovery_code:
       ok = true;
     } else if (step !== null && row.last_step !== null && step <= row.last_step) {
       // A valid but already-used code: treat as a replay attempt and count it.
-      audit(user.id, user.role, 'auth.mfa_replay_blocked', 'user', user.id, { step });
+      const replay = { step, last_step: row.last_step, delta_steps: row.last_step - step };
+      audit(user.id, user.role, 'auth.mfa_replay_blocked', 'user', user.id, replay);
+      // A large delta means the device clock is far behind the server clock —
+      // that is the single most common cause of "the code is always wrong".
+      if (replay.delta_steps >= 10) {
+        throw ApiError.unauthorized(
+          'ساعت دستگاه شما با سرور اختلاف زیادی دارد؛ زمان گوشی را روی «تنظیم خودکار» بگذارید و دوباره وارد شوید.'
+        );
+      }
     }
   }
 
@@ -197,8 +205,13 @@ function enable(userId, { code } = {}) {
   const codes = totp.generateRecoveryCodes(8);
   const now = nowIso();
   tx(() => {
-    run('UPDATE user_mfa SET enabled = 1, confirmed_at = ?, last_step = ?, updated_at = ? WHERE user_id = ?',
-      [now, step, now, userId]);
+    // `last_step` stays NULL on purpose. Setting it to the step just used for
+    // enrolment would reject that same code at the very next login (replay
+    // protection is `step > last_step`), i.e. the user would enable 2FA and be
+    // unable to log in again for up to 30 seconds — and would burn an attempt
+    // each try. Replay protection starts with the first *login* code instead.
+    run('UPDATE user_mfa SET enabled = 1, confirmed_at = ?, last_step = NULL, updated_at = ? WHERE user_id = ?',
+      [now, now, userId]);
     run('DELETE FROM mfa_recovery_codes WHERE user_id = ?', [userId]);
     for (const plain of codes) {
       run('INSERT INTO mfa_recovery_codes (id, user_id, code_hash, created_at) VALUES (?, ?, ?, ?)',
