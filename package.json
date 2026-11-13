@@ -1,0 +1,25 @@
+{
+  "name": "central-mine",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CENTRAL MINE — پلتفرم فارسی فروش کالا و خدمات عملیاتی آنلاین",
+  "scripts": {
+    "install:all": "npm --prefix server install && npm --prefix client install",
+    "build": "npm --prefix client run build",
+    "migrate": "npm --prefix server run migrate",
+    "migrate:down": "npm --prefix server run migrate:down",
+    "seed": "npm --prefix server run seed",
+    "backup": "node scripts/backup.js --verify",
+    "test": "npm --prefix client run build && npm --prefix server test",
+    "start": "bash scripts/start-server.sh",
+    "preflight": "node scripts/preflight.js",
+    "preflight:live": "node scripts/preflight.js --url \"$CM_PUBLIC_BASE_URL\"",
+    "verify": "npm test && node scripts/preflight.js",
+    "mfa:list": "node scripts/mfa-provision.js --list",
+    "mfa:provision": "node scripts/mfa-provision.js",
+    "monitor": "node scripts/monitor.js",
+    "retention": "node scripts/retention.js",
+    "admin:create": "node scripts/create-admin.js",
+    "demo:purge": "node scripts/purge-demo.js"
+  }
+}

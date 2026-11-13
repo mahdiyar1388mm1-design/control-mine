@@ -1,0 +1,402 @@
+:root {
+  --cm-pink: #ec1e79;
+  --bg: #fff9fc;
+  --primary: #ec1e79;
+  --primary-hover: #be185d;
+  --primary-soft: #fce7f3;
+  --info: #be185d;
+  --info-soft: #fce7f3;
+}
+
+/* Replace the remaining blue interface accents with the pink-and-white brand palette */
+:focus-visible {
+  outline-color: #ec1e79;
+}
+::selection {
+  background: #fbcfe8;
+  color: #831843;
+}
+.brand-tag {
+  background: rgba(236, 30, 121, 0.18);
+  color: #fbcfe8;
+}
+.msg-item.operator {
+  background: #fff5fa;
+  border-color: #fbcfe8;
+}
+.auth-password-wrap {
+  background: #fff5fa;
+}
+
+/* When selling, keep the existing form on the wallet page directly below the Sell button. */
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) {
+  display: flex;
+  flex-direction: column;
+}
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > * {
+  order: 20;
+}
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > .lth-top-ticker-bar { order: 1; }
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > .lth-wallet-card { order: 2; }
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > .muted { order: 3; }
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > button.lth-outline-btn.pink-text { order: 4; }
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > section.card:has(input[placeholder="مثلاً 0.001"]) {
+  order: 5;
+  margin-top: 0;
+}
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > button.lth-outline-btn:not(.pink-text) { order: 6; }
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > .grid.grid-2 { order: 7; }
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > section.card:not(:has(form)):not(:has(h3)) { order: 8; }
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > .alert-inline { order: 9; }
+.lth-shell:has(input[placeholder="مثلاً 0.001"]) > section.card:has(h3) { order: 12; }
+
+/* Logos across the site: transparent brand image, no sticker frame, border, outline, shadow or white background */
+.cm-pink-header .cm-brand-mark,
+.cm-brand-mark,
+.lth-ticker-logo,
+.cm-home-brand-img,
+.brand-logo img,
+.cm-footer-logo {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  object-fit: contain !important;
+}
+
+/* Pink line icons */
+.cm-icon {
+  display: inline-block;
+  flex-shrink: 0;
+  vertical-align: -0.2em;
+}
+.nav-link .cm-icon,
+.mobile-nav-item .cm-icon,
+.btn .cm-icon,
+.badge .cm-icon {
+  vertical-align: middle;
+}
+.mobile-nav-item .cm-icon {
+  margin-bottom: 2px;
+}
+
+/* Clickable brand filters on the home product section */
+.home-brand-filter {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  margin: 8px 0 16px;
+  padding: 4px 2px 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+.home-brand-chip {
+  display: flex;
+  flex: 0 0 94px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  transition: transform 0.14s ease, border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease;
+}
+.home-brand-chip:hover {
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+.home-brand-chip.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary-hover);
+  box-shadow: 0 0 0 2px rgba(236, 30, 121, 0.08);
+}
+.home-brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #fce7f3, #fbcfe8);
+  color: #be185d;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0.2px;
+  direction: ltr;
+}
+.home-brand-chip.active .home-brand-mark {
+  background: var(--primary);
+  color: #ffffff;
+}
+.home-brand-name {
+  max-width: 100%;
+  overflow: hidden;
+  color: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Compact sale information card that stays on the home page */
+.home-sell-info {
+  width: min(100%, 480px);
+  margin: -2px auto 12px;
+  padding: 12px 14px;
+  border: 1px solid #fbcfe8;
+  border-radius: 14px;
+  background: #fff7fb;
+  box-shadow: 0 6px 18px rgba(190, 24, 93, 0.08);
+}
+.home-sell-info-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.home-sell-info-header h2 {
+  margin: 0;
+  color: #be185d;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+.home-sell-info > p {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.8;
+}
+.home-sell-info-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border: 1px solid #fbcfe8;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #be185d;
+  cursor: pointer;
+}
+.home-sell-info-close:hover {
+  background: #fce7f3;
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-brand-chip {
+    transition: none;
+  }
+}
+
+/* ---------- Brand logo on storefront product cards (migration 011) ---------- */
+.product-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-inline-start: 6px;
+  padding: 1px 8px 1px 2px;
+  border: 1px solid #fbcfe8;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #be185d;
+  font-weight: 800;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.product-brand img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  border-radius: 50%;
+  background: #fce7f3;
+  padding: 2px;
+}
+.product-brand-lg {
+  font-size: 0.84rem;
+  padding: 3px 12px 3px 4px;
+}
+.product-brand-lg img { width: 26px; height: 26px; }
+.product-brand-lg a { color: inherit; text-decoration: none; }
+.product-brand-lg a:hover { text-decoration: underline; }
+
+/* ---------- Brand strip on the shop page (migration 011) ---------- */
+.shop-brand-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid #fbcfe8;
+  border-radius: 16px;
+  background: #ffffff;
+}
+.shop-brand-strip-label {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #9d174d;
+}
+.shop-brand-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px 4px 4px;
+  border: 1px solid #fbcfe8;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #6b7280;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.shop-brand-pill img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  border-radius: 50%;
+  background: #fce7f3;
+  padding: 2px;
+}
+.shop-brand-pill:hover { background: #fce7f3; color: #be185d; border-color: #f9a8d4; }
+.shop-brand-pill.is-active { background: #ec1e79; border-color: #ec1e79; color: #ffffff; }
+.shop-brand-pill.is-active img { background: rgba(255, 255, 255, 0.9); }
+@media (prefers-reduced-motion: reduce) {
+  .shop-brand-pill { transition: none; }
+}
+
+/* ---------- Account panel: real SVG icons instead of stripped emoji ---------- */
+.account-avatar {
+  background: linear-gradient(135deg, #ec1e79, #be185d);
+  color: #ffffff;
+}
+
+.account-menu-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border-radius: 9px;
+  background: #fce7f3;
+  color: #be185d;
+}
+
+.account-menu-item {
+  gap: 10px;
+}
+
+.account-menu-item.active .account-menu-ico,
+.account-menu-item:hover .account-menu-ico {
+  background: #ec1e79;
+  color: #ffffff;
+}
+
+.account-menu-item.active {
+  background: #fdf2f8;
+  color: #be185d;
+  font-weight: 800;
+}
+
+.account-menu-item.danger .account-menu-ico {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.account-menu-item.danger:hover .account-menu-ico {
+  background: #b91c1c;
+  color: #ffffff;
+}
+
+.account-manage-icon {
+  background: #fce7f3;
+  color: #be185d;
+}
+
+.account-manage-item:hover .account-manage-icon {
+  background: #ec1e79;
+  color: #ffffff;
+}
+
+.account-manage-arrow {
+  color: #ec1e79;
+}
+
+.account-contact-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.auth-security-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+/* ===================== LTH admin treasury rows / tax / projection ===================== */
+.lth-row-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: #fdf2f8;
+  border: 1px solid #fbcfe8;
+  color: #be185d;
+  flex: 0 0 auto;
+  margin-inline-end: 8px;
+}
+
+.lth-row-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.lth-row-hint {
+  display: block;
+  font-size: 0.72rem;
+  color: #94a3b8;
+  font-weight: 400;
+  margin-top: 2px;
+}
+
+.lth-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.lth-kpi-box {
+  background: #fff7fb;
+  border: 1px solid #fbcfe8;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.lth-kpi-box .kpi-label {
+  font-size: 0.78rem;
+  color: #9d174d;
+  margin-bottom: 4px;
+}
+
+.lth-kpi-box .kpi-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #831843;
+  letter-spacing: -0.01em;
+}

@@ -1,0 +1,609 @@
+import React, { useCallback, useEffect, useState } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { apiFetch } from '../lib/api';
+import { addCommas } from '../lib/lthMath';
+import { formatDateTime, formatMoney } from '../lib/format';
+import { useAuth } from '../context/AuthContext';
+import { LthTopBar } from '../components/LthTopBar';
+import { LthWalletCard } from '../components/LthWalletCard';
+import { EmptyState, ErrorState, FieldErrorsList, LoadingState, StatusBadge } from '../components/StateViews';
+import { Icon } from '../components/Icon';
+
+const WALLET_PANELS = ['sheba', 'sell', 'contracts', 'p2p'];
+const WALLET_PANEL_TITLES = {
+  sheba: 'برداشت شبا',
+  sell: 'فروش LTH',
+  contracts: 'قراردادهای هوشمند',
+  p2p: 'انتقال حساب به حساب (PAY)'
+};
+
+export function LthWalletPage() {
+  const { user, authLoading } = useAuth();
+  const navigate = useNavigate();
+  const { panel: routePanel } = useParams();
+  const [searchParams] = useSearchParams();
+  const queryPanel = searchParams.get('panel');
+  const requestedPanel = routePanel || queryPanel || 'contracts';
+  const initialPanel = WALLET_PANELS.includes(requestedPanel) ? requestedPanel : 'contracts';
+  const isDedicatedPanelPage = WALLET_PANELS.includes(routePanel);
+
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const [showExactDigits, setShowExactDigits] = useState(false);
+  const [showFullSerial, setShowFullSerial] = useState(false);
+  const [activePanel, setActivePanel] = useState(initialPanel);
+
+  // Forms state
+  const [shebaForm, setShebaForm] = useState({
+    sheba_iban: '',
+    account_holder_name: '',
+    amount_irr: '',
+    withdraw_all: false
+  });
+  const [sellForm, setSellForm] = useState({
+    sheba_iban: '',
+    account_holder_name: '',
+    lth_amount: '',
+    withdraw_all: false
+  });
+  const [p2pForm, setP2pForm] = useState({
+    recipient: '',
+    lth_amount: '',
+    note: ''
+  });
+
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [opErr, setOpErr] = useState(null);
+
+  useEffect(() => {
+    const panel = routePanel || queryPanel;
+    setActivePanel(WALLET_PANELS.includes(panel) ? panel : 'contracts');
+  }, [routePanel, queryPanel]);
+
+  const selectPanel = (panel) => {
+    if (!WALLET_PANELS.includes(panel)) return;
+    setOpErr(null);
+    setMsg('');
+    navigate(`/wallet/${panel}`);
+  };
+
+  const loadWallet = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await apiFetch('/lth/wallet');
+      setData(res);
+      setShebaForm((f) => ({ ...f, account_holder_name: f.account_holder_name || user.full_name || '' }));
+      setSellForm((f) => ({ ...f, account_holder_name: f.account_holder_name || user.full_name || '' }));
+    } catch (err) {
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      loadWallet();
+    }
+  }, [authLoading, user, loadWallet]);
+
+  if (authLoading) return <LoadingState label="در حال بررسی نشست کاربری..." />;
+
+  if (!user) {
+    const loginTarget = isDedicatedPanelPage ? `/wallet/${routePanel}` : (WALLET_PANELS.includes(queryPanel) ? `/wallet/${queryPanel}` : '/wallet');
+    return (
+      <div className="lth-shell">
+        <LthTopBar />
+        <EmptyState
+          title="ورود به کیف پول ماین (LOTH COIN)"
+          description="برای مشاهدهٔ موجودی LTH، قراردادهای هوشمند استیک (PoS)، برداشت شبا و انتقال حساب به حساب وارد حساب خود شوید. همچنین با لمس نوار بالای صفحه می‌توانید وارد موتور محاسبه‌گر ریال و پکیج‌ها شوید."
+          actionLabel="ورود / ثبت‌نام در سامانه"
+          actionTo={`/auth?next=${encodeURIComponent(loginTarget)}`}
+        />
+      </div>
+    );
+  }
+
+  if (loading) return <LoadingState label="در حال استعلام کیف پول LTH و تطبیق با دفتر حسابداری سرور..." />;
+  if (error) return <ErrorState error={error} onRetry={loadWallet} />;
+  if (!data) return null;
+
+  const { config: cfg, wallet: w, reconciliation: rec, holdings, withdrawals, transfers, recent_ledger: ledger } = data;
+  const fmtLth = (disp8, exact) => (showExactDigits ? exact : disp8);
+
+  const submitShebaWithdrawal = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setOpErr(null);
+    setMsg('');
+    try {
+      const res = await apiFetch('/lth/withdrawals', {
+        method: 'POST',
+        body: {
+          kind: 'sheba_withdrawal',
+          sheba_iban: shebaForm.sheba_iban,
+          account_holder_name: shebaForm.account_holder_name,
+          amount_irr: shebaForm.withdraw_all ? undefined : shebaForm.amount_irr,
+          withdraw_all: shebaForm.withdraw_all
+        }
+      });
+      setShebaForm((s) => ({ ...s, amount_irr: '', withdraw_all: false }));
+      setMsg(`درخواست برداشت شبا با کد رهگیری ${res.withdrawal.code} ثبت شد و در صف بررسی واحد مالی قرار گرفت.`);
+      await loadWallet();
+    } catch (err) {
+      setOpErr(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitSellLth = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setOpErr(null);
+    setMsg('');
+    try {
+      const res = await apiFetch('/lth/withdrawals', {
+        method: 'POST',
+        body: {
+          kind: 'sell_lth',
+          sheba_iban: sellForm.sheba_iban,
+          account_holder_name: sellForm.account_holder_name,
+          lth_amount: sellForm.withdraw_all ? undefined : sellForm.lth_amount,
+          withdraw_all: sellForm.withdraw_all
+        }
+      });
+      setSellForm((s) => ({ ...s, lth_amount: '', withdraw_all: false }));
+      setMsg(`درخواست فروش LTH با کد ${res.withdrawal.code} به مبلغ ${res.withdrawal.amount_irr_formatted} ریال ثبت شد.`);
+      await loadWallet();
+    } catch (err) {
+      setOpErr(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleCancelWithdrawal = async (code) => {
+    setBusy(true);
+    setOpErr(null);
+    setMsg('');
+    try {
+      await apiFetch(`/lth/withdrawals/${encodeURIComponent(code)}/cancel`, { method: 'POST', body: {} });
+      setMsg(`درخواست ${code} لغو شد و موجودی بلافاصله به کیف پول شما بازگردانده شد.`);
+      await loadWallet();
+    } catch (err) {
+      setOpErr(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitP2pTransfer = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setOpErr(null);
+    setMsg('');
+    try {
+      const res = await apiFetch('/lth/transfers', {
+        method: 'POST',
+        body: p2pForm
+      });
+      setP2pForm({ recipient: '', lth_amount: '', note: '' });
+      setMsg(`انتقال حساب به حساب (${res.transfer.code}) به نام «${res.transfer.recipient_name}» در سرور ثبت و اعمال شد.`);
+      await loadWallet();
+    } catch (err) {
+      setOpErr(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="lth-shell">
+      {/* Dedicated routes keep the selected wallet action focused on its own page. */}
+      <LthTopBar config={cfg} />
+
+      {isDedicatedPanelPage && (
+        <div className="flex-between" style={{ margin: '4px 0 14px', order: 4 }}>
+          <h1 style={{ margin: 0, fontSize: '1.2rem' }}>{WALLET_PANEL_TITLES[activePanel]}</h1>
+          <Link to="/wallet" className="muted"><Icon name="arrowLeft" size={14} /> بازگشت به کیف پول</Link>
+        </div>
+      )}
+
+      {!isDedicatedPanelPage && (
+        <>
+          <LthWalletCard
+            wallet={w}
+            config={cfg}
+            onSelectSheba={() => selectPanel('sheba')}
+          />
+
+          <div className="muted" style={{ fontSize: '0.8rem', textAlign: 'center', marginBottom: 12 }}>
+            <Icon name="info2" size={14} /> {cfg.phase_notes?.tmn_and_toman_wallet_rows} • <Link to="/treasury"><strong>مشاهدهٔ وضعیت خزانهٔ پروتکل <Icon name="arrowLeft" size={13} /></strong></Link>
+          </div>
+
+          {/* Wallet actions each open a dedicated route. */}
+          <button
+            type="button"
+            className="lth-outline-btn pink-text"
+            onClick={() => selectPanel('sell')}
+          >
+            فروش
+          </button>
+
+          <button
+            type="button"
+            className="lth-outline-btn"
+            onClick={() => selectPanel('contracts')}
+          >
+            قرارداد هوشمند
+          </button>
+
+          <div className="grid grid-2" style={{ marginBottom: 16 }}>
+            <button
+              type="button"
+              className={`btn ${activePanel === 'p2p' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => selectPanel('p2p')}
+            >
+              <Icon name="money" size={15} /> حساب به حساب (PAY)
+            </button>
+            <Link to="/lth-calculator" className="btn btn-primary" style={{ background: '#ec1e79' }}>
+              <Icon name="plus2" size={15} /> خرید پکیج / محاسبه‌گر LTH
+            </Link>
+          </div>
+
+          <section className="card" style={{ background: rec.healthy ? '#f0fdf4' : '#fef2f2', borderColor: rec.healthy ? '#86efac' : '#fca5a5' }}>
+            <div className="flex-between" style={{ marginBottom: 6 }}>
+              <strong style={{ color: rec.healthy ? '#166534' : '#991b1b' }}>
+                <Icon name={rec.healthy ? 'check' : 'alert'} size={14} /> {rec.healthy ? 'نشان سلامت و همخوانی با دفتر حسابداری' : 'هشدار تطبیق دفتر حسابداری'}
+              </strong>
+              <span className={`badge ${rec.healthy ? 'badge-ok' : 'badge-danger'}`}>
+                {rec.status_label}
+              </span>
+            </div>
+            <div style={{ fontSize: '0.84rem', color: '#1e293b' }}>
+              پاداش هر <strong>1.00 LTH</strong> در ۲۴ ساعت (واریز خودکار از سمت سرور):{' '}
+              <strong className="mono">{rec.benchmark_1_lth_24h.reward_24h_lth} LTH</strong> معادل{' '}
+              <strong className="mono">{rec.benchmark_1_lth_24h.reward_24h_irr_formatted} ریال</strong>{' '}
+              (<span className="mono">{rec.benchmark_1_lth_24h.reward_24h_toman_formatted} تومان</span>) •{' '}
+              تراکنش‌های تطبیق‌شدهٔ دفتر شما: <strong>{rec.checked_ledger_entries.toLocaleString('fa-IR')} ردیف</strong>
+            </div>
+          </section>
+        </>
+      )}
+
+      {msg && <div className="alert-inline ok"><Icon name="check" size={14} /> {msg}</div>}
+      {opErr && (
+        <>
+          <div className="alert-inline error"><Icon name="alert" size={14} /> {opErr.message}</div>
+          <FieldErrorsList details={opErr.details} />
+        </>
+      )}
+
+      {/* The selected action is the only work panel shown on a dedicated route. */}
+
+      {activePanel === 'sheba' && (
+        <section className="card" style={isDedicatedPanelPage ? { order: 5 } : undefined}>
+          <div className="flex-between" style={{ marginBottom: 10 }}>
+            <h2 style={{ margin: 0, fontSize: '1.08rem' }}><Icon name="bank" size={16} /> ثبت درخواست برداشت شبا (به ریال)</h2>
+            <span className="badge badge-info">سقف قابل برداشت: {w.withdrawable_irr_formatted} ریال</span>
+          </div>
+          <p className="muted" style={{ fontSize: '0.86rem', marginTop: 0 }}>
+            موجودی قابل برداشت شامل «حجم پایه به ریال + {cfg.withdrawable_percent}٪ پاداش دریافتی به ریال» است. بخش استیک ({cfg.stake_percent}٪ پاداش) تا پایان {cfg.lockup_days.toLocaleString('fa-IR')} روز پس از خرید قفل است.
+          </p>
+          <form onSubmit={submitShebaWithdrawal}>
+            <div className="form-row">
+              <label className="form-label">شماره شبای ۲۶ کاراکتری مقصد (شروع با IR) <span className="req-star">*</span></label>
+              <input
+                className="input mono"
+                required
+                placeholder="IR062960000000100324200001"
+                value={shebaForm.sheba_iban}
+                onChange={(e) => setShebaForm({ ...shebaForm, sheba_iban: e.target.value })}
+              />
+            </div>
+            <div className="form-row">
+              <label className="form-label">نام و نام خانوادگی صاحب حساب شبا <span className="req-star">*</span></label>
+              <input
+                className="input"
+                required
+                value={shebaForm.account_holder_name}
+                onChange={(e) => setShebaForm({ ...shebaForm, account_holder_name: e.target.value })}
+              />
+            </div>
+            <label className="flex-gap" style={{ marginBottom: 10 }}>
+              <input
+                type="checkbox"
+                checked={shebaForm.withdraw_all}
+                onChange={(e) => setShebaForm({ ...shebaForm, withdraw_all: e.target.checked })}
+              />
+              <span>برداشت کل موجودی قابل برداشت ({w.withdrawable_irr_formatted} ریال)</span>
+            </label>
+            {!shebaForm.withdraw_all && (
+              <div className="form-row">
+                <label className="form-label">مبلغ برداشت به ریال (حداقل ۱۰٬۰۰۰ ریال) <span className="req-star">*</span></label>
+                <input
+                  className="input mono"
+                  required
+                  placeholder="مثلاً 2200000"
+                  value={shebaForm.amount_irr}
+                  onChange={(e) => setShebaForm({ ...shebaForm, amount_irr: e.target.value })}
+                />
+              </div>
+            )}
+            <button type="submit" className="btn btn-primary btn-block" disabled={busy}>
+              {busy ? 'در حال ثبت درخواست در سرور...' : 'ثبت درخواست برداشت شبا'}
+            </button>
+          </form>
+        </section>
+      )}
+
+      {activePanel === 'sell' && (
+        <section className="card" style={isDedicatedPanelPage ? { order: 5 } : undefined}>
+          <div className="flex-between" style={{ marginBottom: 10 }}>
+            <h2 style={{ margin: 0, fontSize: '1.08rem', color: '#be185d' }}><Icon name="swap" size={16} /> فروش موجودی قابل برداشت LTH به نرخ سرور</h2>
+            <span className="badge badge-info">قابل فروش: LTH {w.total_withdrawable_lth_display_8}</span>
+          </div>
+          <p className="muted" style={{ fontSize: '0.86rem', marginTop: 0 }}>
+            فروش فقط از محل «جمع ال تی اچ قابل برداشت» با نرخ لحظه‌ای سرور (<span className="mono">{cfg.price_irr_formatted} IRR</span>) انجام و معادل ریالی آن برای واریز شبا ثبت می‌گردد.
+          </p>
+          <form onSubmit={submitSellLth}>
+            <div className="form-row">
+              <label className="form-label">شماره شبای مقصد جهت واریز معادل ریالی <span className="req-star">*</span></label>
+              <input
+                className="input mono"
+                required
+                placeholder="IR062960000000100324200001"
+                value={sellForm.sheba_iban}
+                onChange={(e) => setSellForm({ ...sellForm, sheba_iban: e.target.value })}
+              />
+            </div>
+            <div className="form-row">
+              <label className="form-label">نام صاحب حساب <span className="req-star">*</span></label>
+              <input
+                className="input"
+                required
+                value={sellForm.account_holder_name}
+                onChange={(e) => setSellForm({ ...sellForm, account_holder_name: e.target.value })}
+              />
+            </div>
+            <label className="flex-gap" style={{ marginBottom: 10 }}>
+              <input
+                type="checkbox"
+                checked={sellForm.withdraw_all}
+                onChange={(e) => setSellForm({ ...sellForm, withdraw_all: e.target.checked })}
+              />
+              <span>فروش کل LTH قابل برداشت ({w.total_withdrawable_lth_exact} LTH)</span>
+            </label>
+            {!sellForm.withdraw_all && (
+              <div className="form-row">
+                <label className="form-label">مقدار LTH جهت فروش <span className="req-star">*</span></label>
+                <input
+                  className="input mono"
+                  required
+                  placeholder="مثلاً 0.001"
+                  value={sellForm.lth_amount}
+                  onChange={(e) => setSellForm({ ...sellForm, lth_amount: e.target.value })}
+                />
+              </div>
+            )}
+            <button type="submit" className="lth-filled-btn" disabled={busy} style={{ marginBottom: 0 }}>
+              {busy ? 'در حال ثبت فروش...' : 'تأیید فروش و ثبت تسویهٔ شبا'}
+            </button>
+          </form>
+        </section>
+      )}
+
+      {activePanel === 'p2p' && (
+        <section className="card" style={isDedicatedPanelPage ? { order: 5 } : undefined}>
+          <div className="flex-between" style={{ marginBottom: 10 }}>
+            <h2 style={{ margin: 0, fontSize: '1.08rem' }}><Icon name="money" size={16} /> انتقال حساب به حساب (PAY)</h2>
+            <span className="badge badge-info">قابل انتقال: LTH {w.total_withdrawable_lth_display_8}</span>
+          </div>
+          <p className="muted" style={{ fontSize: '0.86rem', marginTop: 0 }}>
+            انتقال آنی موجودی قابل برداشت LTH به سایر کاربران سامانه با وارد کردن شماره موبایل یا شناسهٔ ۱۶ رقمی کیف پول مقصد (موجودی استیک قفل‌شده قابل انتقال نیست).
+          </p>
+          <form onSubmit={submitP2pTransfer}>
+            <div className="grid grid-2">
+              <div className="form-row">
+                <label className="form-label">موبایل یا شناسهٔ ۱۶ رقمی کیف پول مقصد <span className="req-star">*</span></label>
+                <input
+                  className="input mono"
+                  required
+                  placeholder="09120000011"
+                  value={p2pForm.recipient}
+                  onChange={(e) => setP2pForm({ ...p2pForm, recipient: e.target.value })}
+                />
+              </div>
+              <div className="form-row">
+                <label className="form-label">مقدار LTH انتقالی <span className="req-star">*</span></label>
+                <input
+                  className="input mono"
+                  required
+                  placeholder="0.00010000"
+                  value={p2pForm.lth_amount}
+                  onChange={(e) => setP2pForm({ ...p2pForm, lth_amount: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="form-row">
+              <label className="form-label">توضیحات انتقال (اختیاری)</label>
+              <input
+                className="input"
+                placeholder="بابت تسویه..."
+                value={p2pForm.note}
+                onChange={(e) => setP2pForm({ ...p2pForm, note: e.target.value })}
+              />
+            </div>
+            <button type="submit" className="btn btn-primary btn-block" disabled={busy}>
+              {busy ? 'در حال انتقال...' : 'انجام انتقال حساب به حساب'}
+            </button>
+          </form>
+
+          {transfers.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <h3 style={{ fontSize: '0.96rem', marginBottom: 8 }}>آخرین تراکنش‌های حساب به حساب شما</h3>
+              <div className="table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>کد</th>
+                      <th>نوع</th>
+                      <th>طرف مقابل</th>
+                      <th>مقدار LTH</th>
+                      <th>زمان</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transfers.map((t) => (
+                      <tr key={t.id}>
+                        <td className="mono">{t.code}</td>
+                        <td>
+                          <span className={`badge ${t.direction === 'in' ? 'badge-ok' : 'badge-neutral'}`}>
+                            {t.direction === 'in' ? 'دریافتی (+)' : 'ارسالی (-)'}
+                          </span>
+                        </td>
+                        <td>{t.counterparty_name}</td>
+                        <td className="mono">{t.lth_exact}</td>
+                        <td>{formatDateTime(t.created_at)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {activePanel === 'contracts' && (
+        <section className="card" style={isDedicatedPanelPage ? { order: 5 } : undefined}>
+          <div className="flex-between" style={{ marginBottom: 10 }}>
+            <h2 style={{ margin: 0, fontSize: '1.08rem' }}><Icon name="book" size={16} /> قراردادهای هوشمند استیک (Proof of Stake) و واریز ۲۴ ساعته</h2>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={loadWallet}><Icon name="refresh" size={16} /> بروزرسانی از سرور</button>
+          </div>
+          <p className="muted" style={{ fontSize: '0.85rem', marginTop: 0 }}>
+            هر خرید یک قرارداد مستقل Proof of Stake ایجاد می‌کند. سرور هر ۲۴ ساعت پاداش متناظر را محاسبه و واریز می‌نماید ({cfg.stake_percent}٪ استیک قفل‌شده به مدت {cfg.lockup_days.toLocaleString('fa-IR')} روز از زمان خرید + {cfg.withdrawable_percent}٪ قابل برداشت آنی).
+          </p>
+
+          {holdings.length === 0 ? (
+            <EmptyState
+              title="هنوز قرارداد خرید فعالی ثبت نشده است"
+              description="با انتخاب یکی از پکیج‌های LTH در صفحهٔ محاسبه‌گر، اولین حجم پایه و قرارداد هوشمند خود را فعال نمایید."
+              actionLabel="مشاهدهٔ پکیج‌های LTH"
+              actionTo="/lth-calculator"
+            />
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {holdings.map((h) => (
+                <div key={h.id} style={{ border: '1px solid #fbcfe8', background: '#fffbfd', borderRadius: 14, padding: 14 }}>
+                  <div className="flex-between" style={{ marginBottom: 8 }}>
+                    <strong className="mono" style={{ color: '#be185d' }}>{h.contract_code}</strong>
+                    <span className={`badge ${h.stake_unlocked ? 'badge-ok' : 'badge-info'}`}>
+                      {h.stake_unlocked
+                        ? 'آزادشده (پایان دوره استیک)'
+                        : `قفل استیک: ${h.days_remaining.toLocaleString('fa-IR')} روز باقی‌مانده از ${h.lockup_days.toLocaleString('fa-IR')} روز`}
+                    </span>
+                  </div>
+                  <div className="grid grid-2" style={{ fontSize: '0.85rem', gap: 8 }}>
+                    <div>خرید اولیه (حجم پایه): <strong className="mono">{h.initial_base_lth_display_8} LTH</strong></div>
+                    <div>حجم پایهٔ فعال فعلی: <strong className="mono">{h.active_base_lth_display_8} LTH</strong></div>
+                    <div>استیک انباشتهٔ این قرارداد: <strong className="mono">{h.accrued_staked_lth_exact} LTH</strong></div>
+                    <div>پاداش ۲۴ ساعتهٔ بعدی: <strong className="mono">{h.daily_reward_lth_exact} LTH</strong></div>
+                    <div>زمان خرید: <span>{formatDateTime(h.purchased_at)}</span></div>
+                    <div>سررسید آزادسازی استیک: <span>{formatDateTime(h.stake_unlock_at)}</span></div>
+                    <div>دوره‌های ۲۴ساعتهٔ واریزشده: <strong>{h.last_reward_cycle.toLocaleString('fa-IR')} دوره</strong></div>
+                    <div>نوبت واریز سرور بعدی: <span>{formatDateTime(h.next_reward_at)}</span></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {ledger.length > 0 && (
+            <div style={{ marginTop: 18 }}>
+              <h3 style={{ fontSize: '0.96rem', marginBottom: 8 }}><Icon name="book" size={16} /> آخرین ثبت‌های دفتر حسابداری کیف پول شما</h3>
+              <div className="table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>زمان</th>
+                      <th>شرح عملیات</th>
+                      <th>تغییر پایه</th>
+                      <th>تغییر استیک</th>
+                      <th>تغییر قابل برداشت</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ledger.map((l) => (
+                      <tr key={l.id}>
+                        <td>{formatDateTime(l.created_at)}</td>
+                        <td>{l.note || l.entry_type}</td>
+                        <td className="mono">{l.delta_base_lth}</td>
+                        <td className="mono">{l.delta_staked_lth}</td>
+                        <td className="mono">{l.delta_withdrawable_lth}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Withdrawals & Sales History */}
+      {withdrawals.length > 0 && (!isDedicatedPanelPage || ['sell', 'sheba'].includes(activePanel)) && (
+        <section className="card">
+          <h3 style={{ marginTop: 0, fontSize: '1rem' }}>سابقهٔ درخواست‌های برداشت شبا و فروش LTH</h3>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>کد</th>
+                  <th>نوع</th>
+                  <th>مبلغ ریالی</th>
+                  <th>معادل تومان</th>
+                  <th>شبا</th>
+                  <th>وضعیت</th>
+                  <th>مرجع / عملیات</th>
+                </tr>
+              </thead>
+              <tbody>
+                {withdrawals.map((wd) => (
+                  <tr key={wd.id}>
+                    <td className="mono">{wd.code}</td>
+                    <td>{wd.kind_label}</td>
+                    <td className="mono">{wd.amount_irr_formatted} ریال</td>
+                    <td>{formatMoney(wd.amount_toman)}</td>
+                    <td className="mono">{wd.sheba_masked}</td>
+                    <td><StatusBadge status={wd.status === 'paid' ? 'paid' : (wd.status === 'pending' ? 'pending' : 'canceled')} label={wd.status_label} /></td>
+                    <td>
+                      {wd.status === 'pending' ? (
+                        <button
+                          type="button"
+                          className="btn btn-danger btn-sm"
+                          disabled={busy}
+                          onClick={() => handleCancelWithdrawal(wd.code)}
+                        >
+                          لغو و برگشت به کیف پول
+                        </button>
+                      ) : (
+                        <span className="mono" style={{ fontSize: '0.8rem' }}>{wd.bank_ref || wd.review_note || '—'}</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}

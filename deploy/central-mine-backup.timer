@@ -1,0 +1,11 @@
+# هر شب ساعت ۰۳:۱۵ به وقت محلی، با کمی تصادف برای جلوگیری از هم‌زمانی مزارع سرور.
+[Unit]
+Description=CENTRAL MINE — زمان‌بند پشتیبان روزانه
+
+[Timer]
+OnCalendar=*-*-* 03:15:00
+RandomizedDelaySec=300
+Persistent=true
+
+[Install]
+WantedBy=timers.target
